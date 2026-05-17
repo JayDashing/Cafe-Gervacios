@@ -1,0 +1,350 @@
+{
+  "project": "Cafe Gervacios Refined Premium Fixed Top-View Operational Restaurant System",
+  "camera": {
+    "name": "Camera_Fixed_2_5D_Operations",
+    "type": "ORTHOGRAPHIC",
+    "recommended_render_angle": "fixed angled top view, roughly 52 degrees down from horizon with orthographic projection",
+    "controls": {
+      "rotate": false,
+      "pan": false,
+      "orbit": false,
+      "limited_zoom": true
+    },
+    "threejs_controls_note": "Use the exported fixed camera. Do not attach free OrbitControls. If zoom is enabled, clamp min/max tightly."
+  },
+  "collections": [
+    "Cafe_Shell",
+    "Lighting",
+    "Decor",
+    "Booths",
+    "Dining_Tables",
+    "Round_Tables",
+    "Counter",
+    "Kitchen",
+    "Plants",
+    "Interaction_Zones"
+  ],
+  "interaction_strategy": {
+    "only_raycast_collection": "Interaction_Zones",
+    "raycast_filter": "object.userData.cg_object_type === 'interaction_zone' && object.userData.cg_raycast_target === true",
+    "visible_tables": "Dining_Tables, Round_Tables, Booths, Counter",
+    "chairs_decor_walls_clickable": false,
+    "click_zone_rule": "Click zones are larger than visible tables and validated not to overlap."
+  },
+  "spacing_strategy": {
+    "minimum_table_center_spacing_m": 3.1,
+    "minimum_booth_center_spacing_m": 3.0,
+    "minimum_round_table_center_spacing_m": 3.4,
+    "primary_aisle_clearance_m": 1.25,
+    "table_scaling_adjustment": "rectangular tables enlarged from roughly 1.10x0.78m to 1.38x0.96m; group tables enlarged to 1.58x0.98m; round tables enlarged from 0.53m to 0.68m radius",
+    "visual_style": "refined architectural floor-management layout with quiet materials, muted status rings, and floor-dominant hierarchy",
+    "click_zone_clearance_rule": "AABB overlap check during generation; export fails if any Clickable_* zones intersect."
+  },
+  "table_states": {
+    "FREE": "soft green glow",
+    "RESERVED": "subtle amber outline/glow",
+    "OCCUPIED": "soft red glow",
+    "CLEANING": "soft blue glow"
+  },
+  "interactive_objects": [
+    {
+      "table_key": "T1",
+      "visible_object": "Table_T1",
+      "clickable_object": "Clickable_T1",
+      "zone": "Main Dining Area",
+      "capacity": 4,
+      "status": "FREE",
+      "table_type": "rectangular_table",
+      "merge_group": "Center_A",
+      "can_merge_with": [
+        "T2"
+      ],
+      "visible_location_xyz": [
+        -3.5,
+        -2.75,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.56,
+        2.06
+      ]
+    },
+    {
+      "table_key": "T2",
+      "visible_object": "Table_T2",
+      "clickable_object": "Clickable_T2",
+      "zone": "Main Dining Area",
+      "capacity": 4,
+      "status": "RESERVED",
+      "table_type": "rectangular_table",
+      "merge_group": "Center_A",
+      "can_merge_with": [
+        "T1"
+      ],
+      "visible_location_xyz": [
+        -0.35,
+        -2.75,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.56,
+        2.06
+      ]
+    },
+    {
+      "table_key": "T3",
+      "visible_object": "Table_T3",
+      "clickable_object": "Clickable_T3",
+      "zone": "Main Dining Area",
+      "capacity": 4,
+      "status": "OCCUPIED",
+      "table_type": "rectangular_table",
+      "merge_group": "Center_B",
+      "can_merge_with": [
+        "T4"
+      ],
+      "visible_location_xyz": [
+        -3.5,
+        0.45,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.56,
+        2.06
+      ]
+    },
+    {
+      "table_key": "T4",
+      "visible_object": "Table_T4",
+      "clickable_object": "Clickable_T4",
+      "zone": "Main Dining Area",
+      "capacity": 4,
+      "status": "CLEANING",
+      "table_type": "rectangular_table",
+      "merge_group": "Center_B",
+      "can_merge_with": [
+        "T3"
+      ],
+      "visible_location_xyz": [
+        -0.35,
+        0.45,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.56,
+        2.06
+      ]
+    },
+    {
+      "table_key": "T5",
+      "visible_object": "Table_T5",
+      "clickable_object": "Clickable_T5",
+      "zone": "Group Table Area",
+      "capacity": 4,
+      "status": "FREE",
+      "table_type": "rectangular_table",
+      "merge_group": "Group_C",
+      "can_merge_with": [
+        "T6"
+      ],
+      "visible_location_xyz": [
+        -3.15,
+        3.55,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.76,
+        2.08
+      ]
+    },
+    {
+      "table_key": "T6",
+      "visible_object": "Table_T6",
+      "clickable_object": "Clickable_T6",
+      "zone": "Group Table Area",
+      "capacity": 4,
+      "status": "FREE",
+      "table_type": "rectangular_table",
+      "merge_group": "Group_C",
+      "can_merge_with": [
+        "T5"
+      ],
+      "visible_location_xyz": [
+        0.2,
+        3.55,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.76,
+        2.08
+      ]
+    },
+    {
+      "table_key": "T7",
+      "visible_object": "Table_T7",
+      "clickable_object": "Clickable_T7",
+      "zone": "Round Table Area",
+      "capacity": 3,
+      "status": "FREE",
+      "table_type": "round_table",
+      "merge_group": "",
+      "can_merge_with": [],
+      "visible_location_xyz": [
+        4.75,
+        -2.95,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.62,
+        2.62
+      ]
+    },
+    {
+      "table_key": "T8",
+      "visible_object": "Table_T8",
+      "clickable_object": "Clickable_T8",
+      "zone": "Round Table Area",
+      "capacity": 3,
+      "status": "RESERVED",
+      "table_type": "round_table",
+      "merge_group": "",
+      "can_merge_with": [],
+      "visible_location_xyz": [
+        4.75,
+        0.55,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.62,
+        2.62
+      ]
+    },
+    {
+      "table_key": "Booth_A1",
+      "visible_object": "Booth_A1",
+      "clickable_object": "Clickable_Booth_A1",
+      "zone": "Window Booth Area",
+      "capacity": 4,
+      "status": "FREE",
+      "table_type": "booth_table",
+      "merge_group": "Booth_A",
+      "can_merge_with": [
+        "Booth_A2"
+      ],
+      "visible_location_xyz": [
+        -6.25,
+        -3.45,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.45,
+        1.98
+      ]
+    },
+    {
+      "table_key": "Booth_A2",
+      "visible_object": "Booth_A2",
+      "clickable_object": "Clickable_Booth_A2",
+      "zone": "Window Booth Area",
+      "capacity": 4,
+      "status": "RESERVED",
+      "table_type": "booth_table",
+      "merge_group": "Booth_A",
+      "can_merge_with": [
+        "Booth_A1",
+        "Booth_A3"
+      ],
+      "visible_location_xyz": [
+        -6.25,
+        -0.35,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.45,
+        1.98
+      ]
+    },
+    {
+      "table_key": "Booth_A3",
+      "visible_object": "Booth_A3",
+      "clickable_object": "Clickable_Booth_A3",
+      "zone": "Window Booth Area",
+      "capacity": 4,
+      "status": "FREE",
+      "table_type": "booth_table",
+      "merge_group": "Booth_A",
+      "can_merge_with": [
+        "Booth_A2"
+      ],
+      "visible_location_xyz": [
+        -6.25,
+        2.75,
+        0.49
+      ],
+      "click_zone_size_m": [
+        2.45,
+        1.98
+      ]
+    },
+    {
+      "table_key": "Counter_1",
+      "visible_object": "Counter_1",
+      "clickable_object": "Clickable_Counter_1",
+      "zone": "Counter / Cashier",
+      "capacity": 1,
+      "status": "FREE",
+      "table_type": "counter_seat",
+      "merge_group": "CounterSeats",
+      "can_merge_with": [],
+      "visible_location_xyz": [
+        5.62,
+        2.65,
+        0.43
+      ],
+      "click_zone_size_m": [
+        1.04,
+        1.14
+      ]
+    },
+    {
+      "table_key": "Counter_2",
+      "visible_object": "Counter_2",
+      "clickable_object": "Clickable_Counter_2",
+      "zone": "Counter / Cashier",
+      "capacity": 1,
+      "status": "FREE",
+      "table_type": "counter_seat",
+      "merge_group": "CounterSeats",
+      "can_merge_with": [],
+      "visible_location_xyz": [
+        5.62,
+        3.85,
+        0.43
+      ],
+      "click_zone_size_m": [
+        1.04,
+        1.14
+      ]
+    },
+    {
+      "table_key": "Counter_3",
+      "visible_object": "Counter_3",
+      "clickable_object": "Clickable_Counter_3",
+      "zone": "Counter / Cashier",
+      "capacity": 1,
+      "status": "CLEANING",
+      "table_type": "counter_seat",
+      "merge_group": "CounterSeats",
+      "can_merge_with": [],
+      "visible_location_xyz": [
+        5.62,
+        5.05,
+        0.43
+      ],
+      "click_zone_size_m": [
+        1.04,
+        1.14
+      ]
+    }
+  ]
+}

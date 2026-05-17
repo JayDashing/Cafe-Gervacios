@@ -122,6 +122,14 @@ class SeatingAnalytics extends Component
         return $labels;
     }
 
+    #[Computed]
+    public function hasSourceData(): bool
+    {
+        return Booking::query()->exists()
+            || QueueEntry::query()->exists()
+            || Table::query()->exists();
+    }
+
     public function render()
     {
         return view('livewire.admin.seating-analytics', [

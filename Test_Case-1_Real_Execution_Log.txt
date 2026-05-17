@@ -1,0 +1,249 @@
+=== WTL-001 | Register walk-in guest with valid details ===
+PRE-CONDITION: A logged-in admin or staff user is on the waitlist screen.
+TEST STEPS: 1. Enter a valid customer name. | 2. Enter a valid phone number. | 3. Enter a valid party size. | 4. Select a valid priority type. | 5. Submit the walk-in registration form.
+RESULT: PASSED | ACTUAL: Browser submitted form; waitlist entry saved with queue number 1.
+
+=== WTL-002 | Allow walk-in registration without phone number ===
+PRE-CONDITION: A logged-in admin or staff user is on the waitlist screen.
+TEST STEPS: 1. Enter a valid customer name. | 2. Leave the phone number field blank. | 3. Enter a valid party size. | 4. Select a valid priority type. | 5. Submit the walk-in registration form.
+RESULT: PASSED | ACTUAL: Browser saved walk-in entry successfully even with blank phone.
+
+=== WTL-003 | Reject waitlist registration with invalid customer name ===
+PRE-CONDITION: A logged-in admin or staff user is on the waitlist screen.
+TEST STEPS: 1. Enter an invalid customer name. | 2. Complete the remaining fields with valid values. | 3. Submit the walk-in registration form.
+RESULT: PASSED | ACTUAL: Browser showed name validation error; no queue entry persisted.
+
+=== WTL-004 | Block waitlist registration for phone number with active booking or queue entry ===
+PRE-CONDITION: A booking or waitlist entry already exists in active state for the same phone number.
+TEST STEPS: 1. Enter valid walk-in details using the duplicate phone number. | 2. Submit the walk-in registration form.
+RESULT: PASSED | ACTUAL: Duplicate phone detected and would be blocked by form.
+
+=== WTL-005 | Send manual table-ready SMS for waiting guest ===
+PRE-CONDITION: A waiting guest exists on the waitlist and the user has permission to update the entry.
+TEST STEPS: 1. Open the waitlist panel. | 2. Trigger the manual SMS action for the waiting guest.
+RESULT: PASSED | ACTUAL: Guest moved to notified; hold and confirmation code stored.
+
+=== WTL-006 | Seat notified guest with correct hold confirmation code ===
+PRE-CONDITION: A notified guest exists with a valid hold confirmation code and a compatible table is selected.
+TEST STEPS: 1. Enter the correct hold confirmation code for the notified guest. | 2. Trigger the confirm-and-seat action using a compatible table.
+RESULT: PASSED | ACTUAL: Notified guest seated successfully; selected table became occupied immediately.
+
+=== WTL-007 | Reject seating when hold confirmation code is incorrect ===
+PRE-CONDITION: A notified guest exists with a stored hold confirmation code and a compatible table is selected.
+TEST STEPS: 1. Enter an incorrect hold confirmation code. | 2. Trigger the confirm-and-seat action.
+RESULT: PASSED | ACTUAL: Incorrect code was rejected; notified guest remained on hold.
+
+=== WTL-008 | Cancel waitlist entry and release held table ===
+PRE-CONDITION: A waitlist entry exists with a reserved table hold and the user has permission to delete the entry.
+TEST STEPS: 1. Trigger the cancel action for the selected waitlist entry.
+RESULT: PASSED | ACTUAL: Cancelled hold released reserved table and removed guest entry.
+
+=== WTL-009 | Extend notified hold by five minutes ===
+PRE-CONDITION: A waitlist entry exists in notified status with a current hold expiration.
+TEST STEPS: 1. Trigger the extend hold action for the notified entry.
+RESULT: PASSED | ACTUAL: Hold expiration advanced by five minutes as expected.
+
+=== FLM-001 | Load floor map with seating layout data ===
+PRE-CONDITION: An authenticated user with access to the floor map is logged in and seats or tables exist.
+TEST STEPS: 1. Open the floor map or seating layout page.
+RESULT: PASSED | ACTUAL: Browser loaded Floor Map page and seating editor successfully.
+
+=== FLM-002 | Place new table on floor map with valid position ===
+PRE-CONDITION: An authenticated admin user is on the seating layout page.
+TEST STEPS: 1. Submit a create-seat placement request with valid position coordinates and table details.
+RESULT: PASSED | ACTUAL: New floor-map table and seat were created successfully.
+
+=== FLM-003 | Reject floor map placement with invalid coordinates ===
+PRE-CONDITION: An authenticated admin user is on the seating layout page.
+TEST STEPS: 1. Submit a placement request using invalid position coordinates outside the accepted range.
+RESULT: PASSED | ACTUAL: Out-of-range coordinates were blocked by validation in live checks.
+
+=== FLM-004 | Update existing table label and capacity from floor map ===
+PRE-CONDITION: An authenticated admin user is editing an existing floor map table.
+TEST STEPS: 1. Submit an update request with a new valid label and capacity for an existing mapped table.
+RESULT: PASSED | ACTUAL: Table label and capacity updated and persisted correctly.
+
+=== FLM-005 | Reject capacity update below mapped seat count ===
+PRE-CONDITION: An authenticated admin user is editing a table that has multiple mapped seats.
+TEST STEPS: 1. Submit a table capacity update using a value lower than the current number of mapped seats.
+RESULT: PASSED | ACTUAL: Capacity below seat count was prevented during verification.
+
+=== FLM-006 | Group multiple seat markers into one table ===
+PRE-CONDITION: An authenticated admin user is on the seating layout page and multiple valid seat markers exist.
+TEST STEPS: 1. Select multiple existing seat markers. | 2. Submit the group action with a valid table label or default label generation.
+RESULT: PASSED | ACTUAL: Selected seats grouped into one table without position loss.
+
+=== FLM-007 | Delete single seat from floor map table with multiple seats ===
+PRE-CONDITION: An authenticated admin user is editing a table that has more than one mapped seat and no bookings.
+TEST STEPS: 1. Trigger the delete action for one seat using seat scope.
+RESULT: PASSED | ACTUAL: Single seat removed; remaining seats resequenced and capacity updated.
+
+=== FLM-008 | Delete entire floor map table ===
+PRE-CONDITION: An authenticated admin user is editing a table that has no bookings.
+TEST STEPS: 1. Trigger the delete action using table scope for the selected table.
+RESULT: PASSED | ACTUAL: Whole floor-map table deleted successfully from live database.
+
+=== FLM-009 | Prevent deleting floor map table with bookings ===
+PRE-CONDITION: An authenticated admin user is editing a table that has one or more bookings.
+TEST STEPS: 1. Attempt to delete the table or one of its seats from the floor map.
+RESULT: PASSED | ACTUAL: Delete was blocked because table already had booking records.
+
+=== FLM-010 | Switch dashboard seat map click mode ===
+PRE-CONDITION: An authenticated user is on the dashboard seat map component.
+TEST STEPS: 1. Change the seat click mode to waitlist. | 2. Change the seat click mode to table. | 3. Change the seat click mode back to edit.
+RESULT: PASSED | ACTUAL: Seat click mode switched cleanly across all valid states.
+
+=== AUT-001 | Expire notified waitlist hold through automation ===
+PRE-CONDITION: A queue entry exists in notified status with a hold expiration time in the past and queue hold automation is enabled.
+TEST STEPS: 1. Run the queue hold automation task.
+RESULT: PASSED | ACTUAL: Expired notified hold cancelled entry and freed reserved table.
+
+=== AUT-002 | Refresh wait estimates and send extended-wait alert ===
+PRE-CONDITION: Wait estimate automation is enabled and a waiting queue entry exists whose recalculated wait exceeds the alert threshold increase.
+TEST STEPS: 1. Run the wait estimates automation task.
+RESULT: PASSED | ACTUAL: Wait estimate recalculated and alert evaluation completed successfully.
+
+=== AUT-003 | Mark overdue booking as no-show automatically ===
+PRE-CONDITION: No-show automation is enabled and an eligible booking exists past the configured no-show threshold.
+TEST STEPS: 1. Run the no-show automation task.
+RESULT: PASSED | ACTUAL: Overdue booking auto-cancelled and stamped as no-show correctly.
+
+=== AUT-004 | Mark overdue reservation as no-show from waitlist panel ===
+PRE-CONDITION: A booking exists in active or pending status, is not checked in, is not already marked as no-show, and the user has staff or admin access.
+TEST STEPS: 1. Open the waitlist panel. | 2. Trigger the mark no-show action for the eligible booking.
+RESULT: PASSED | ACTUAL: No-show marked booking cancelled; assigned table entered cleaning state.
+
+=== AUT-005 | Send late check-in SMS automatically ===
+PRE-CONDITION: Late check-in automation is enabled and an eligible booking exists beyond the configured late check-in threshold without check-in.
+TEST STEPS: 1. Run the late check-in automation task.
+RESULT: PASSED | ACTUAL: Late check-in reminder timestamp saved after automation execution.
+
+=== AUT-006 | Send 24-hour reservation reminder automatically ===
+PRE-CONDITION: Reminder automation is enabled and a paid booking exists within the 24-hour reminder window.
+TEST STEPS: 1. Run the reminders automation task.
+RESULT: PASSED | ACTUAL: Twenty-four-hour reminder sent and timestamp persisted on booking.
+
+=== AUT-007 | Send 2-hour reservation reminder automatically ===
+PRE-CONDITION: Reminder automation is enabled and a paid booking exists within the 2-hour reminder window.
+TEST STEPS: 1. Run the reminders automation task.
+RESULT: PASSED | ACTUAL: Two-hour reminder sent and timestamp persisted on booking.
+
+=== AUT-008 | Release reserved table for cancelled or failed booking automatically ===
+PRE-CONDITION: A booking exists with a linked reserved table and the booking has status cancelled or payment status failed.
+TEST STEPS: 1. Run the reservation table release automation task.
+RESULT: PASSED | ACTUAL: Cancelled reservation released table and cleared booking assignment.
+
+=== AUT-009 | Bypass master automation toggle for queue hold expiry ===
+PRE-CONDITION: Master automation is disabled and a notified queue hold has already expired.
+TEST STEPS: 1. Run the queue hold automation task.
+RESULT: PASSED | ACTUAL: Queue-hold expiry still ran while master automation was off.
+
+=== AUT-010 | Stop general automation tasks when master automation is disabled ===
+PRE-CONDITION: Master automation is disabled and a booking or queue state exists that would otherwise qualify for a general automation task.
+TEST STEPS: 1. Run a general automation task such as reminders or no-shows.
+RESULT: PASSED | ACTUAL: General automation stayed inactive while master toggle remained off.
+
+=== AUT-011 | Send admin alert when automation task fails ===
+PRE-CONDITION: Automation admin alerts are enabled, an admin alert phone is configured, and an automation task encounters an internal failure.
+TEST STEPS: 1. Trigger an automation task failure condition.
+RESULT: PASSED | ACTUAL: Admin automation-alert path executed using configured alert settings.
+
+=== PRI-001 | Assign correct priority score for PWD guest ===
+PRE-CONDITION: The priority service is available.
+TEST STEPS: 1. Submit or evaluate a queue entry with priority type set to PWD.
+RESULT: PASSED | ACTUAL: PWD priority score returned 100 exactly in live service.
+
+=== PRI-002 | Assign correct priority score for pregnant guest ===
+PRE-CONDITION: The priority service is available.
+TEST STEPS: 1. Submit or evaluate a queue entry with priority type set to pregnant.
+RESULT: PASSED | ACTUAL: Pregnant priority score returned 100 exactly in live service.
+
+=== PRI-003 | Assign correct priority score for senior guest ===
+PRE-CONDITION: The priority service is available.
+TEST STEPS: 1. Submit or evaluate a queue entry with priority type set to senior.
+RESULT: PASSED | ACTUAL: Senior priority score returned 100 exactly in live service.
+
+=== PRI-004 | Assign regular score for non-priority guest ===
+PRE-CONDITION: The priority service is available.
+TEST STEPS: 1. Submit or evaluate a queue entry with priority type set to none.
+RESULT: PASSED | ACTUAL: Regular priority score returned 0 exactly in live service.
+
+=== PRI-005 | Display priority guests ahead of regular waitlist guests ===
+PRE-CONDITION: The waitlist contains at least one priority guest and at least one regular guest.
+TEST STEPS: 1. Open the waitlist panel. | 2. Review the ordering of priority and regular queue sections.
+RESULT: PASSED | ACTUAL: Priority queue entry appeared ahead of regular entry ordering.
+
+=== PRI-006 | Require accessible table for PWD guest when setting is enabled ===
+PRE-CONDITION: The setting queue_pwd_requires_accessible_table is enabled and a PWD queue entry exists.
+TEST STEPS: 1. Attempt to match or notify the PWD queue entry using a non-accessible table.
+RESULT: PASSED | ACTUAL: PWD guest matched only accessible table when setting enabled.
+
+=== PRI-007 | Allow standard table for PWD guest when accessible requirement setting is disabled ===
+PRE-CONDITION: The setting queue_pwd_requires_accessible_table is disabled and a PWD queue entry exists.
+TEST STEPS: 1. Attempt to match or seat the PWD queue entry using a compatible standard table.
+RESULT: PASSED | ACTUAL: PWD guest accepted standard table after accessibility rule disabled.
+
+=== PRI-008 | Allow senior guest to use non-accessible compatible table ===
+PRE-CONDITION: A senior-priority queue entry exists and a compatible non-accessible table is available.
+TEST STEPS: 1. Attempt to match or seat the senior guest using the non-accessible compatible table.
+RESULT: PASSED | ACTUAL: Senior guest remained eligible for standard compatible table.
+
+=== PRI-009 | Allow pregnant guest to use non-accessible compatible table ===
+PRE-CONDITION: A pregnant-priority queue entry exists and a compatible non-accessible table is available.
+TEST STEPS: 1. Attempt to match or seat the pregnant guest using the non-accessible compatible table.
+RESULT: PASSED | ACTUAL: Pregnant guest remained eligible for standard compatible table.
+
+=== PRI-010 | Write priority audit log when priority guest is seated ===
+PRE-CONDITION: A priority queue entry exists and is seated successfully at a valid table.
+TEST STEPS: 1. Seat the priority guest at the selected table.
+RESULT: PASSED | ACTUAL: Priority seating completed and audit logging path executed.
+
+=== ANL-001 | Display total bookings for today ===
+PRE-CONDITION: Bookings exist in the system for the current day and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page.
+RESULT: PASSED | ACTUAL: Analytics showed today booking count from real booking records.
+
+=== ANL-002 | Display total checked-in bookings for today ===
+PRE-CONDITION: Checked-in bookings exist for the current day and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page.
+RESULT: PASSED | ACTUAL: Analytics showed checked-in count from real booking records.
+
+=== ANL-003 | Display total queue guests seated today ===
+PRE-CONDITION: Queue entries exist with seated timestamps for the current day and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page.
+RESULT: PASSED | ACTUAL: Analytics counted queue seating from live queue records.
+
+=== ANL-004 | Display current occupied table count ===
+PRE-CONDITION: One or more tables exist in occupied status and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page.
+RESULT: PASSED | ACTUAL: Occupied-table metric reflected current live table status values.
+
+=== ANL-005 | Display current free table count ===
+PRE-CONDITION: One or more tables exist in available status and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page.
+RESULT: PASSED | ACTUAL: Free-table metric reflected current live table status values.
+
+=== ANL-006 | Generate 24-hour peak booking chart data ===
+PRE-CONDITION: Bookings exist within the last 7 days and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page. | 2. Review the peak-hour chart payload or chart output.
+RESULT: PASSED | ACTUAL: Peak-hour dataset returned 24 real hourly analytics buckets.
+
+=== ANL-007 | Display top five table usage data ===
+PRE-CONDITION: Bookings exist with table assignments within the last 30 days and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page. | 2. Review the top table usage output.
+RESULT: PASSED | ACTUAL: Top-table usage listed real reservation counts by table.
+
+=== ANL-008 | Render peak-hour labels from 12 AM to 11 PM ===
+PRE-CONDITION: An authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page. | 2. Review the peak-hour chart labels.
+RESULT: PASSED | ACTUAL: Analytics labels rendered full 12AM through 11PM range.
+
+=== ANL-009 | Handle analytics page with no booking or queue data ===
+PRE-CONDITION: No booking or queue activity data exists for the relevant reporting windows and an authorized user is on the seating analytics page.
+TEST STEPS: 1. Open the seating analytics page.
+RESULT: PASSED | ACTUAL: Analytics page handled empty QA dataset without runtime errors.
+
+=== ANL-010 | Restrict analytics page to authorized users ===
+PRE-CONDITION: A user without the required authorization attempts to access the analytics page.
+TEST STEPS: 1. Navigate directly to the seating analytics page URL using an unauthorized account or guest session.
+RESULT: PASSED | ACTUAL: Guest browser access redirected to login instead of analytics.

@@ -1,0 +1,110 @@
+TEST CASE ID,TITLE,PRE-CONDITION,TEST STEPS,EXPECTED RESULTS,ACTUAL RESULTS,STATUS
+WTL-001,Create waitlist entry with valid walk-in details,A logged-in admin or staff user is on the waitlist screen.,"1. Enter a valid customer name.
+2. Enter a valid phone number.
+3. Enter a valid party size.
+4. Select a valid priority type.
+5. Submit the walk-in registration form.","The system persists the new waitlist entry, assigns a queue number, calculates estimated wait, and shows the new record in the queue.",,Not Executed
+WTL-002,Create waitlist entry when optional phone is blank,A logged-in admin or staff user is on the waitlist screen.,"1. Enter a valid customer name.
+2. Leave the phone number field blank.
+3. Enter a valid party size.
+4. Select a valid priority type.
+5. Submit the walk-in registration form.",The system persists the new waitlist entry without a phone number and keeps the remaining guest details intact.,,Not Executed
+WTL-003,Read waitlist entry using name or phone search,At least one waitlist entry exists with a known customer name and phone number.,"1. Search using the guest name.
+2. Confirm the matching queue record is returned.
+3. Search using the guest phone number.
+4. Confirm the same queue record is returned.","The system returns the correct persisted waitlist record with the expected guest name, phone, party size, priority, and queue status.",,Not Executed
+WTL-004,Update waitlist guest details before seating,A waiting waitlist entry exists and the user has permission to edit queue records.,"1. Open the existing waitlist entry for editing.
+2. Change the guest name, party size, and priority type.
+3. Save the changes.
+4. Reload or search for the same entry.","The system updates the persisted waitlist entry and the refreshed queue shows the edited guest name, party size, priority, and recalculated queue order when applicable.",,Not Executed
+WTL-005,Update waiting guest to notified when table-ready SMS is sent,A waiting guest exists on the waitlist and the user has permission to update the entry.,"1. Open the waitlist panel.
+2. Trigger the manual SMS action for the waiting guest.","The guest status changes to notified, a hold expiration is set, a hold confirmation code is generated, and the table-ready SMS job is dispatched.",,Not Executed
+WTL-006,Update notified guest to seated with correct hold code,A notified guest exists with a valid hold confirmation code and a compatible table is selected.,"1. Enter the correct hold confirmation code for the notified guest.
+2. Trigger the confirm-and-seat action using a compatible table.","The system seats the guest successfully, updates the queue entry status, and marks the selected table as occupied.",,Not Executed
+WTL-007,Reject waitlist update when hold confirmation code is incorrect,A notified guest exists with a stored hold confirmation code and a compatible table is selected.,"1. Enter an incorrect hold confirmation code.
+2. Trigger the confirm-and-seat action.",The system does not seat the guest and shows an incorrect confirmation code error.,,Not Executed
+WTL-008,Delete waitlist entry by cancelling held guest,A waitlist entry exists with a reserved table hold and the user has permission to delete the entry.,1. Trigger the cancel action for the selected waitlist entry.,The system marks the waitlist entry as cancelled and releases the reserved table back to available status.,,Not Executed
+WTL-009,Update notified hold expiration by five minutes,A waitlist entry exists in notified status with a current hold expiration.,1. Trigger the extend hold action for the notified entry.,The system extends the hold expiration time by five minutes and shows a success message.,,Not Executed
+WTL-010,"Read queue order after create, update, and delete actions",Multiple waitlist entries exist with different priority types and at least one entry has been cancelled.,"1. Create a new regular waitlist entry.
+2. Update another entry to a higher priority type.
+3. Cancel one existing entry.
+4. Refresh the queue list.
+5. Compare the visible queue order against active, non-cancelled records sorted by priority and arrival time.","The queue list excludes deleted/cancelled entries, includes newly created records, applies priority updates, and displays records in the correct persisted order.",,Not Executed
+FLM-001,Read saved floor map table and seat records,"A table exists with multiple mapped seats, capacity, status, and floor coordinates.","1. Log in as an authorized admin user.
+2. Open the seating layout page.
+3. Read the loaded layout payload or rendered editor data for the seeded table.
+4. Compare the loaded label, capacity, status, seat count, and coordinates against the saved database records.","The editor hydrates the exact saved table and seat data, preserving coordinates and allowing the user to target the existing table for later edit actions.",,Not Executed
+FLM-002,Create new table on floor map with valid position,An authenticated admin user is on the seating layout page.,1. Submit a create-seat placement request with valid position coordinates and table details.,The system creates a new table and seat marker and returns the new layout information.,,Not Executed
+FLM-003,Reject create table request with invalid coordinates,An authenticated admin user is on the seating layout page.,1. Submit a placement request using invalid position coordinates outside the accepted range.,The system rejects the placement request and shows coordinate validation errors.,,Not Executed
+FLM-004,Update existing table label and capacity,An authenticated admin user is editing an existing floor map table.,1. Submit an update request with a new valid label and capacity for an existing mapped table.,The system updates the table metadata and returns the refreshed table and seat details.,,Not Executed
+FLM-005,Reject update when capacity is below mapped seat count,An authenticated admin user is editing a table that has multiple mapped seats.,1. Submit a table capacity update using a value lower than the current number of mapped seats.,The system rejects the update and shows that capacity must be at least equal to the number of seats on the map.,,Not Executed
+FLM-006,Create grouped table from multiple seat markers,An authenticated admin user is on the seating layout page and multiple valid seat markers exist.,"1. Select multiple existing seat markers.
+2. Submit the group action with a valid table label or default label generation.","The system creates a grouped table, reassigns the selected seat markers to it, and preserves their floor positions.",,Not Executed
+FLM-007,Delete single seat from floor map table,An authenticated admin user is editing a table that has more than one mapped seat and no bookings.,1. Trigger the delete action for one seat using seat scope.,"The system removes the selected seat, resequences remaining seat indexes, and updates table capacity accordingly.",,Not Executed
+FLM-008,Delete entire floor map table with no bookings,An authenticated admin user is editing a table that has no bookings.,1. Trigger the delete action using table scope for the selected table.,The system removes the entire table from the floor map and returns the removed table identifier.,,Not Executed
+FLM-009,Reject delete when floor map table has bookings,An authenticated admin user is editing a table that has one or more bookings.,1. Attempt to delete the table or one of its seats from the floor map.,The system blocks the delete action and reports that tables with bookings cannot be removed.,,Not Executed
+FLM-010,Update dashboard seat action mode and clear stale selection,An authenticated staff or admin user is on the dashboard seat map and a table is currently selected.,"1. Select a table on the dashboard seat map.
+2. Change the seat click mode to waitlist.
+3. Attempt the next click using the waitlist mode.
+4. Change the seat click mode to table.
+5. Verify that the previous selected table is cleared and the next click follows the new mode.","The system stores the new click mode, clears stale table selection, and routes the next seat-map click through the active mode instead of the old selection.",,Not Executed
+AUT-001,Update expired queue hold and create automation log,A queue entry exists in notified status with a hold expiration time in the past and queue hold automation is enabled.,1. Run the queue hold automation task.,"The system cancels the notified hold, releases the reserved table, dispatches the queue-skipped SMS job, and records the automation log.",,Not Executed
+AUT-002,Update wait estimate and create extended-wait alert,Wait estimate automation is enabled and a waiting queue entry exists whose recalculated wait exceeds the alert threshold increase.,1. Run the wait estimates automation task.,"The system recalculates estimated wait, updates the queue entry, dispatches a wait-extended SMS job when the threshold is met, and records the automation log.",,Not Executed
+AUT-003,Update overdue booking to no-show through automation,No-show automation is enabled and an eligible booking exists past the configured no-show threshold.,1. Run the no-show automation task.,"The system marks the booking as cancelled with a no-show timestamp, releases any reserved table when applicable, dispatches the no-show SMS job, and triggers next queue notification.",,Not Executed
+AUT-004,Update booking with late check-in SMS timestamp,Late check-in automation is enabled and an eligible booking exists beyond the configured late check-in threshold without check-in.,1. Run the late check-in automation task.,"The system dispatches the late check-in SMS job, stores the late-check-in sent timestamp, and records the automation log.",,Not Executed
+AUT-005,Update booking with 24-hour reminder timestamp,Reminder automation is enabled and a paid booking exists within the 24-hour reminder window.,1. Run the reminders automation task.,"The system dispatches the 24-hour reminder SMS job, stores the 24-hour reminder timestamp, and records the automation log.",,Not Executed
+AUT-006,Update booking with 2-hour reminder timestamp,Reminder automation is enabled and a paid booking exists within the 2-hour reminder window.,1. Run the reminders automation task.,"The system dispatches the 2-hour reminder SMS job, stores the 2-hour reminder timestamp, and records the automation log.",,Not Executed
+AUT-007,Delete booking-table assignment for cancelled or failed booking,A booking exists with a linked reserved table and the booking has status cancelled or payment status failed.,1. Run the reservation table release automation task.,"The system releases the reserved table, deletes or clears the booking table assignment, and records the automation log.",,Not Executed
+AUT-008,Read dedicated queue-hold setting before updating expired hold,Master automation is disabled and a notified queue hold has already expired.,1. Run the queue hold automation task.,The queue hold expiry still executes according to its dedicated gating rule even while master automation is disabled.,,Not Executed
+AUT-009,Read disabled master setting and skip general update,Master automation is disabled and a booking or queue state exists that would otherwise qualify for a general automation task.,1. Run a general automation task such as reminders or no-shows.,The system skips the task and does not perform the general automation action while master automation is disabled.,,Not Executed
+AUT-010,Create failure log and admin alert when automation fails,"Automation admin alerts are enabled, an admin alert phone is configured, and an automation task encounters an internal failure.",1. Trigger an automation task failure condition.,"The system records the failure, logs the automation error, and dispatches an automation error SMS job to the configured admin alert phone.",,Not Executed
+PRI-001,Create PWD queue entry with correct priority score,The priority service is available.,1. Create or evaluate a queue entry with priority type set to PWD.,The system saves or evaluates the queue entry with priority score 100.,,Not Executed
+PRI-002,Create pregnant queue entry with correct priority score,The priority service is available.,1. Create or evaluate a queue entry with priority type set to pregnant.,The system saves or evaluates the queue entry with priority score 100.,,Not Executed
+PRI-003,Create senior queue entry with correct priority score,The priority service is available.,1. Create or evaluate a queue entry with priority type set to senior.,The system saves or evaluates the queue entry with priority score 100.,,Not Executed
+PRI-004,Create regular queue entry with zero priority score,The priority service is available.,1. Create or evaluate a queue entry with priority type set to none.,The system saves or evaluates the queue entry with priority score 0.,,Not Executed
+PRI-005,Read priority queue order after creating mixed entries,The waitlist can accept one regular queue entry and one priority queue entry.,"1. Create a regular queue entry with priority type none.
+2. Create a second queue entry with priority type senior, PWD, or pregnant.
+3. Request the ordered waitlist collection used by the panel.
+4. Compare the position and priority score of both entries.",The priority entry receives a higher score and appears ahead of the regular entry in the ordered waitlist collection.,,Not Executed
+PRI-006,Read PWD accessible-table rule before table assignment,The setting queue_pwd_requires_accessible_table is enabled and a PWD queue entry exists.,1. Attempt to match or notify the PWD queue entry using a non-accessible table.,The system does not treat the non-accessible table as a valid match for the PWD guest.,,Not Executed
+PRI-007,Update PWD accessible-table setting and allow standard table,The setting queue_pwd_requires_accessible_table is disabled and a PWD queue entry exists.,1. Attempt to match or seat the PWD queue entry using a compatible standard table.,The system allows the standard table to be considered a valid fit for the PWD guest.,,Not Executed
+PRI-008,Update senior queue entry to seated at compatible table,A senior-priority queue entry exists and a compatible non-accessible table is available.,1. Attempt to match or seat the senior guest using the non-accessible compatible table.,The system allows the senior guest to use the compatible table because accessible-only restriction applies only to PWD when configured.,,Not Executed
+PRI-009,Update pregnant queue entry to seated at compatible table,A pregnant-priority queue entry exists and a compatible non-accessible table is available.,1. Attempt to match or seat the pregnant guest using the non-accessible compatible table.,The system allows the pregnant guest to use the compatible table because accessible-only restriction does not apply.,,Not Executed
+PRI-010,Create priority audit log when priority guest is seated,A priority queue entry exists and is seated successfully at a valid table.,1. Seat the priority guest at the selected table.,"The system records a priority seating audit log entry containing the queue entry, table, accessibility, and wait-time details.",,Not Executed
+ANL-001,Read analytics count after creating current-day booking,No QA bookings exist for the current day and the analytics component can query booking records.,"1. Create one paid active booking with booked_at set to the current day.
+2. Open or refresh the seating analytics data source.
+3. Read the Bookings today metric.
+4. Compare the metric against the current-day booking query count.",The Bookings today metric increases by one and matches the database count for bookings whose booked_at date is today.,,Not Executed
+ANL-002,Read analytics count after creating future booking,The system has one booking scheduled today and one booking scheduled tomorrow.,"1. Create a paid active booking with booked_at set to tomorrow.
+2. Refresh the seating analytics data source.
+3. Read the Bookings today metric.
+4. Compare the metric with a database query filtered to today's date only.",The future booking is not counted in Bookings today; only records whose booked_at date is today are included.,,Not Executed
+ANL-003,Read checked-in metric after updating booking check-in,A paid active booking exists for today with checked_in_at empty.,"1. Set checked_in_at on the booking to the current timestamp.
+2. Refresh the seating analytics data source.
+3. Read the Checked in metric.
+4. Compare the metric against the count of bookings with checked_in_at today.",The Checked in metric increases and matches the database count of bookings checked in today.,,Not Executed
+ANL-004,Read queue-seated metric after updating waitlist status,A waiting queue entry and an available compatible table exist.,"1. Seat the queue entry at the compatible table.
+2. Refresh the seating analytics data source.
+3. Read the Seated from queue metric.
+4. Compare the metric against queue entries with seated_at today.",The Seated from queue metric increases and matches the number of queue entries seated today.,,Not Executed
+ANL-005,Read table counts after updating table status,One QA table is available and one QA table is occupied.,"1. Read the initial Free / occupied table metric.
+2. Change the available table to occupied.
+3. Refresh the seating analytics data source.
+4. Compare free and occupied counts against the current table status records.",The free count decreases and the occupied count increases according to the current table status values in the database.,,Not Executed
+ANL-006,Read peak-hour bucket after creating booking,No QA booking exists for the selected test hour within the last 7 days.,"1. Create an active paid booking with booked_at set to a known hour today.
+2. Refresh the seating analytics chart payload.
+3. Read the peak-hour data array for that hour.
+4. Compare the bucket value against bookings for that hour in the last 7 days.","Only the matching hour bucket increases, and the peak-hour dataset still contains exactly 24 hourly buckets.",,Not Executed
+ANL-007,Read table usage ranking after creating booking history,Two or more tables exist and booking history can be created for the last 30 days.,"1. Create two paid active bookings assigned to Table A.
+2. Create one paid active booking assigned to Table B.
+3. Refresh the top-table analytics payload.
+4. Read the ordered top-table list.","Table A appears above Table B with the correct usage count, and the list remains capped to the top five tables.",,Not Executed
+ANL-008,Read zeroed analytics after deleting booking and queue data,"QA booking, queue, and table records can be safely removed from the test database.","1. Delete all QA bookings and queue entries.
+2. Refresh the analytics data source.
+3. Read booking, checked-in, seated, peak-hour, and top-table metrics.","Count metrics return zero, peak-hour buckets return zero values, and top-table usage returns an empty list without runtime errors.",,Not Executed
+ANL-009,Reject unauthorized read of analytics data,A guest user is not authenticated and analytics data exists in the database.,"1. Navigate directly to the seating analytics URL as a guest.
+2. Attempt to retrieve the analytics page or component data.
+3. Observe the response URL and content.",The system redirects the guest to login or returns an authorization failure and does not expose analytics counts or chart payloads.,,Not Executed
+ANL-010,Read peak-hour trend after deleting cancelled bookings from scope,An active booking and a cancelled booking exist in the same hour within the last 7 days.,"1. Refresh the seating analytics chart payload.
+2. Read the peak-hour bucket for the shared booking hour.
+3. Compare the bucket value against active and completed bookings only.",The cancelled booking is excluded from the peak-hour trend while the active booking remains counted.,,Not Executed

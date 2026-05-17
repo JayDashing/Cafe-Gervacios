@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\QueueEntry;
+use App\Models\AdminLog;
 use App\Models\Setting;
 use App\Models\Table;
 use Illuminate\Support\Facades\Log;
@@ -85,5 +86,18 @@ class PriorityService
             'wait_minutes' => now()->diffInMinutes($entry->joined_at),
             'seated_at' => now()->toIso8601String(),
         ]);
+
+        AdminLog::record(
+            'priority_seating',
+            'queue_entry',
+            $entry->id,
+            sprintf(
+                'Priority seating: %s guest seated at %s | Score %d | Accessible table %s',
+                strtoupper((string) $entry->priority_type),
+                $table->label,
+                (int) $entry->priority_score,
+                $table->is_accessible ? 'yes' : 'no'
+            )
+        );
     }
 }

@@ -25,8 +25,8 @@ return new class extends Migration {
             $table->unsignedTinyInteger('occupied_party')->nullable();
             $table->timestamps();
 
-            $table->index('status', 'idx_status');
-            $table->index(['is_accessible', 'status'], 'idx_accessible');
+            $table->index('status', 'idx_tables_status');
+            $table->index(['is_accessible', 'status'], 'idx_tables_accessible');
         });
     }
 

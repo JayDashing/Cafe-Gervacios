@@ -16,6 +16,55 @@ function statusToDotClass(status) {
     return status;
 }
 
+function hardCloseSeatModal() {
+    const modal = document.getElementById('seat-modal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+    modal.removeAttribute('data-selected-seat-id');
+    modal.querySelector('#seat-modal-delete-row details')?.removeAttribute('open');
+}
+
+function showSeatModal(modal) {
+    if (!modal) {
+        return;
+    }
+
+    modal.style.display = 'flex';
+    modal.classList.add('open');
+}
+
+function requestSeatModalClose() {
+    if (typeof window.__tcSeatModalClose === 'function') {
+        window.__tcSeatModalClose();
+        return;
+    }
+
+    hardCloseSeatModal();
+}
+
+document.addEventListener('click', (event) => {
+    const modal = document.getElementById('seat-modal');
+    if (!modal?.classList.contains('open')) {
+        return;
+    }
+
+    if (event.target.closest('[data-seat-modal-close]') || event.target === modal) {
+        event.preventDefault();
+        event.stopPropagation();
+        requestSeatModalClose();
+    }
+}, true);
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.getElementById('seat-modal')?.classList.contains('open')) {
+        requestSeatModalClose();
+    }
+});
+
 /** Worst status wins for a table’s badge (occupied > reserved > free). */
 function tableAggregateStatusFromDom(tableId) {
     const dots = document.querySelectorAll(`.seating-seat-dot[data-table-id="${tableId}"]`);
@@ -24,7 +73,9 @@ function tableAggregateStatusFromDom(tableId) {
         const st = el.getAttribute('data-status') ?? 'free';
         if (st === 'occupied') {
             worst = 'occupied';
-        } else if (st === 'reserved' && worst !== 'occupied') {
+        } else if (st === 'cleaning' && worst !== 'occupied') {
+            worst = 'cleaning';
+        } else if (st === 'reserved' && worst !== 'occupied' && worst !== 'cleaning') {
             worst = 'reserved';
         }
     });
@@ -35,12 +86,13 @@ const TABLE_BADGE_STATUS_LABEL = {
     free: 'Free',
     reserved: 'Reserved',
     occupied: 'Occupied',
+    cleaning: 'Cleaning',
 };
 
 function applyTableBadgeVisual(tableId) {
     const status = tableAggregateStatusFromDom(tableId);
     document.querySelectorAll(`[data-seating-group][data-table-id="${tableId}"] .seating-badge-card`).forEach((badge) => {
-        badge.classList.remove('seating-badge--free', 'seating-badge--reserved', 'seating-badge--occupied');
+        badge.classList.remove('seating-badge--free', 'seating-badge--reserved', 'seating-badge--occupied', 'seating-badge--cleaning');
         badge.classList.add(`seating-badge--${status}`);
     });
     document.querySelectorAll(`[data-seating-group][data-table-id="${tableId}"] .seating-badge-status`).forEach((el) => {
@@ -54,7 +106,7 @@ function applySeatStatus(seatId, status) {
         return;
     }
     el.setAttribute('data-status', status);
-    el.classList.remove('available', 'reserved', 'occupied');
+    el.classList.remove('available', 'reserved', 'occupied', 'cleaning');
     el.classList.add(statusToDotClass(status));
     const label = el.getAttribute('data-label') ?? `Seat ${seatId}`;
     el.setAttribute('aria-label', `${label}, ${status}`);
@@ -333,6 +385,7 @@ function initSeatSelection(stage, root, { openEditModal }) {
 
     const apiGroup = root.dataset.apiGroup;
     const apiSeats = root.dataset.apiSeats;
+    const groupingEnabled = Boolean(apiGroup && groupModal && groupBtn);
 
     /** @type {Set<string>} */
     let selectedIds = new Set();
@@ -554,13 +607,13 @@ function initSeatSelection(stage, root, { openEditModal }) {
         if (!id) {
             return;
         }
-        if (e.ctrlKey || e.metaKey) {
+        if (groupingEnabled && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             e.stopPropagation();
             toggleSeatInSelection(id, target);
             return;
         }
-        if (selectionMode) {
+        if (groupingEnabled && selectionMode) {
             e.preventDefault();
             e.stopPropagation();
             toggleSeatInSelection(id, target);
@@ -575,6 +628,9 @@ function initSeatSelection(stage, root, { openEditModal }) {
     stage.addEventListener(
         'pointerdown',
         (e) => {
+            if (!groupingEnabled) {
+                return;
+            }
             if (root.classList.contains('placement-mode')) {
                 return;
             }
@@ -635,6 +691,9 @@ function initSeatSelection(stage, root, { openEditModal }) {
 
     /** Empty map: long-press enters selection mode; drag draws marquee (clears selection when drag starts) */
     stage.addEventListener('pointerdown', (e) => {
+        if (!groupingEnabled) {
+            return;
+        }
         if (root.classList.contains('placement-mode')) {
             return;
         }
@@ -676,6 +735,9 @@ function initSeatSelection(stage, root, { openEditModal }) {
     });
 
     stage.addEventListener('pointermove', (e) => {
+        if (!groupingEnabled) {
+            return;
+        }
         if (root.classList.contains('placement-mode')) {
             return;
         }
@@ -717,6 +779,9 @@ function initSeatSelection(stage, root, { openEditModal }) {
     });
 
     function endPointer(e) {
+        if (!groupingEnabled) {
+            return;
+        }
         clearTimeout(emptyLongPressTimer);
         emptyLongPressTimer = null;
 
@@ -779,7 +844,7 @@ function initSeatSelection(stage, root, { openEditModal }) {
     });
 
     async function submitGroupMerge() {
-        if (!apiGroup || selectedIds.size === 0) {
+        if (!groupingEnabled || selectedIds.size === 0) {
             return;
         }
         const label = groupInput?.value?.trim() ?? '';
@@ -829,6 +894,9 @@ function initSeatSelection(stage, root, { openEditModal }) {
         if (e.key !== 'g' && e.key !== 'G') {
             return;
         }
+        if (!groupingEnabled) {
+            return;
+        }
         if (e.ctrlKey || e.metaKey || e.altKey) {
             return;
         }
@@ -875,6 +943,37 @@ function firstAxiosErrorMessage(err, fallback) {
     return fallback;
 }
 
+function showLayoutError(message) {
+    const text = message || 'Action could not be completed.';
+    window.showToast?.('error', text);
+    const box = document.getElementById('seating-layout-error');
+    const msg = document.getElementById('seating-layout-error-message');
+    if (!box || !msg) {
+        return;
+    }
+    msg.textContent = text;
+    box.classList.remove('hidden');
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function clearLayoutError() {
+    const box = document.getElementById('seating-layout-error');
+    const msg = document.getElementById('seating-layout-error-message');
+    if (!box || !msg) {
+        return;
+    }
+    msg.textContent = '';
+    box.classList.add('hidden');
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#seating-layout-error-dismiss')) {
+        return;
+    }
+    e.preventDefault();
+    clearLayoutError();
+});
+
 /** Remove table group overlays and seat dots for a table (after API deleted the table). */
 function removeTableFromDom(tableId) {
     const tid = String(tableId);
@@ -900,6 +999,7 @@ async function postSeatDeleteFromGlobal(scope, seatId, apiDelete) {
     if (!confirmed) {
         return;
     }
+    clearLayoutError();
     try {
         const { data } = await axios.post(
             apiDelete,
@@ -915,22 +1015,57 @@ async function postSeatDeleteFromGlobal(scope, seatId, apiDelete) {
         await refreshSeatMapData(document.querySelector('[data-seating-layout]')?.dataset?.apiSeats);
     } catch (err) {
         console.error(err);
-        window.showToast?.('error', firstAxiosErrorMessage(err, 'Could not remove'));
+        showLayoutError(firstAxiosErrorMessage(err, 'Could not remove'));
+    }
+}
+
+async function postSeatUnmergeFromGlobal(seatId, apiUnmerge) {
+    setCsrfHeader();
+    const confirmed = await confirmAsync('Unmerge this table into separate table markers?');
+    if (!confirmed) {
+        return;
+    }
+    clearLayoutError();
+    try {
+        await axios.post(
+            apiUnmerge,
+            { seat_id: parseInt(seatId, 10) },
+            { headers: { Accept: 'application/json' } },
+        );
+        window.__tcSeatModalClose?.();
+        window.showToast?.('success', 'Table unmerged');
+        window.location.reload();
+    } catch (err) {
+        console.error(err);
+        showLayoutError(firstAxiosErrorMessage(err, 'Could not unmerge'));
     }
 }
 
 document.addEventListener('click', (e) => {
-    const t = e.target.closest('#seat-modal-delete-seat, #seat-modal-delete-table');
+    const t = e.target.closest('#seat-modal-delete-seat, #seat-modal-delete-table, #seat-modal-unmerge-table');
     if (!t) {
         return;
     }
     e.preventDefault();
-    const scope = t.id === 'seat-modal-delete-table' ? 'table' : 'seat';
     const root = document.querySelector('[data-seating-layout]');
     const modal = document.getElementById('seat-modal');
-    const apiDelete = root?.dataset?.apiDelete;
     const sid = modal?.getAttribute('data-selected-seat-id');
-    if (!apiDelete || !sid) {
+    if (!sid) {
+        return;
+    }
+    if (t.id === 'seat-modal-unmerge-table') {
+        const apiUnmerge = root?.dataset?.apiUnmerge;
+        if (!apiUnmerge) {
+            return;
+        }
+        postSeatUnmergeFromGlobal(sid, apiUnmerge);
+
+        return;
+    }
+
+    const scope = t.id === 'seat-modal-delete-table' ? 'table' : 'seat';
+    const apiDelete = root?.dataset?.apiDelete;
+    if (!apiDelete) {
         return;
     }
     postSeatDeleteFromGlobal(scope, sid, apiDelete);
@@ -948,6 +1083,7 @@ function initSeatingLayout() {
     const apiUpdate = root.dataset.apiUpdate;
     const apiPlace = root.dataset.apiPlace;
     const apiDelete = root.dataset.apiDelete;
+    const apiUnmerge = root.dataset.apiUnmerge;
     if (!apiSeats || !apiUpdate) {
         return;
     }
@@ -966,6 +1102,7 @@ function initSeatingLayout() {
     const saveBtn = document.getElementById('seat-modal-save');
     const closeBtn = document.getElementById('seat-modal-close');
     const doneBtn = document.getElementById('seat-modal-done');
+    const unmergeRow = document.getElementById('seat-modal-unmerge-row');
     const deleteRow = document.getElementById('seat-modal-delete-row');
 
     /** @type {'place' | 'edit' | null} */
@@ -986,11 +1123,12 @@ function initSeatingLayout() {
         const tableLabel = dot.getAttribute('data-table-label') ?? '';
         const seatIdx = dot.getAttribute('data-seat-index') ?? '1';
         const status = dot.getAttribute('data-status') ?? 'free';
+        const seatCount = parseInt(dot.getAttribute('data-table-seat-count') ?? '1', 10);
         if (title) {
-            title.textContent = `Table: ${tableLabel}`;
+            title.textContent = tableLabel ? `Edit ${tableLabel}` : 'Edit table marker';
         }
         if (sub) {
-            sub.textContent = `Seat ${seatIdx} — edit details below.`;
+            sub.textContent = `Marker ${seatIdx} - update details and status.`;
         }
         if (nameInput) {
             nameInput.value = tableLabel;
@@ -1008,6 +1146,7 @@ function initSeatingLayout() {
             furnitureSelect.value = dot.getAttribute('data-furniture-type') ?? 'standard';
         }
         capacityRow?.classList.remove('hidden');
+        unmergeRow?.classList.toggle('hidden', !(apiUnmerge && seatCount > 1));
         if (deleteRow) {
             const canDelete = Boolean(root.dataset.apiDelete);
             deleteRow.classList.toggle('hidden', !canDelete);
@@ -1015,7 +1154,7 @@ function initSeatingLayout() {
         modal?.querySelector('#seat-modal-delete-row details')?.removeAttribute('open');
         setActiveSeatOptions(status);
         modal?.setAttribute('data-selected-seat-id', selectedSeatId);
-        modal?.classList.add('open');
+        showSeatModal(modal);
     }
 
     function openPlaceModal(px, py) {
@@ -1026,10 +1165,10 @@ function initSeatingLayout() {
         pendingPlace = { px, py };
         selectedSeatId = null;
         if (title) {
-            title.textContent = 'Place a seat';
+            title.textContent = 'Add table marker';
         }
         if (sub) {
-            sub.textContent = 'One marker on the map — add more seats and merge groups later.';
+            sub.textContent = 'Place this marker on the blueprint and enter the table details.';
         }
         if (nameInput) {
             nameInput.value = '';
@@ -1039,16 +1178,17 @@ function initSeatingLayout() {
             capacityInput.value = '1';
         }
         if (capacityHint) {
-            capacityHint.textContent = 'Guest capacity for bookings; raise after adding seats (must stay ≥ dot count).';
+            capacityHint.textContent = 'Guest capacity for bookings and walk-in seating.';
         }
         if (furnitureSelect) {
             furnitureSelect.value = 'standard';
         }
         capacityRow?.classList.remove('hidden');
+        unmergeRow?.classList.add('hidden');
         deleteRow?.classList.add('hidden');
         setActiveSeatOptions('free');
         modal?.removeAttribute('data-selected-seat-id');
-        modal?.classList.add('open');
+        showSeatModal(modal);
     }
 
     function closeModal() {
@@ -1057,7 +1197,7 @@ function initSeatingLayout() {
         modalMode = null;
         modal?.removeAttribute('data-selected-seat-id');
         modal?.querySelector('#seat-modal-delete-row details')?.removeAttribute('open');
-        modal?.classList.remove('open');
+        hardCloseSeatModal();
     }
 
     /** @type {{ exitSelectionMode: () => void }} */
@@ -1121,7 +1261,7 @@ function initSeatingLayout() {
                     { headers: { Accept: 'application/json' } },
                 );
                 closeModal();
-                window.showToast?.('success', 'Seat added');
+                window.showToast?.('success', 'Table marker added');
                 window.Livewire.dispatch('tables-refresh');
                 setTimeout(() => window.location.reload(), 600);
             } catch (err) {

@@ -2,6 +2,7 @@
     $compact = $compact ?? false;
     $showQuickHelp = $showQuickHelp ?? true;
     $embed = $embed ?? false;
+    $enableGrouping = $enableGrouping ?? true;
 @endphp
 <div
     class="seating-admin-toolbar {{ $compact ? 'seating-admin-toolbar--compact' : '' }} {{ $embed ? 'seating-admin-toolbar--embed' : '' }}">
@@ -29,13 +30,15 @@
         <div class="seating-btn-group" role="group" aria-label="Floor Map tools">
             <button type="button" id="seating-placement-toggle" class="seating-tool-btn seating-tool-btn--placement">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                <span class="seating-tool-btn__text">Add seats</span>
+                <span class="seating-tool-btn__text">Add marker</span>
             </button>
-            <button type="button" id="seating-selection-mode-toggle" aria-pressed="false"
-                class="seating-tool-btn seating-tool-btn--selection">
-                <i class="fa-solid fa-arrow-pointer" aria-hidden="true"></i>
-                <span class="seating-tool-btn__text">Selection</span>
-            </button>
+            @if ($enableGrouping)
+                <button type="button" id="seating-selection-mode-toggle" aria-pressed="false"
+                    class="seating-tool-btn seating-tool-btn--selection">
+                    <i class="fa-solid fa-arrow-pointer" aria-hidden="true"></i>
+                    <span class="seating-tool-btn__text">Selection</span>
+                </button>
+            @endif
             <details class="seating-more-details">
                 <summary class="seating-tool-btn seating-tool-btn--more"><i class="fa-solid fa-ellipsis"
                         aria-hidden="true"></i> More</summary>
@@ -45,11 +48,13 @@
                         Copy seeder snippet
                     </button>
                     <p class="text-[12px] leading-relaxed text-slate-500"><strong
-                            class="font-semibold text-slate-700">Map:</strong> markers use % of the image. Merged
-                        tables show a dashed frame; tap one marker in a group to select the group.</p>
-                    <p class="mt-2 text-[12px] leading-relaxed text-slate-500"><strong
-                            class="font-semibold text-slate-700">Touch:</strong> long-press a marker to enable
-                        selection mode.</p>
+                            class="font-semibold text-slate-700">Map:</strong> markers use % of the image. Daily
+                        table merging is handled from the Floor Map page.</p>
+                    @if ($enableGrouping)
+                        <p class="mt-2 text-[12px] leading-relaxed text-slate-500"><strong
+                                class="font-semibold text-slate-700">Touch:</strong> long-press a marker to enable
+                            selection mode.</p>
+                    @endif
                 </div>
             </details>
         </div>
@@ -59,8 +64,7 @@
         <div id="seating-quick-help" class="seating-info-callout flex items-start gap-2">
             <p class="min-w-0 flex-1">
                 <strong class="font-semibold text-slate-700">Quick workflow:</strong>
-                add dots → select (drag a box, <strong>Selection</strong>, or <kbd>Ctrl</kbd>+click) →
-                <strong>Group</strong> (<kbd>G</kbd> with 2+ markers).
+                upload the blueprint, click <strong>Add marker</strong>, then tap the image to place table markers.
             </p>
             <button type="button" id="seating-quick-help-dismiss" class="seating-info-callout-dismiss shrink-0"
                 aria-label="Dismiss help">&times;</button>

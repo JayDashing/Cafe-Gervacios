@@ -1,9 +1,21 @@
 @extends('layouts.admin')
 
-@section('page_title', 'Layout Editor')
+@section('page_title', 'Edit Blueprint')
 
 @section('panel_heading')
-    <x-admin-panel-heading title="Layout Editor" />
+    <div class="admin-panel-heading-inner flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <h1 class="text-xl font-semibold tracking-tight text-slate-900 md:text-[22px]">
+                Edit Blueprint
+            </h1>
+            <p class="mt-1 text-sm text-slate-500">Upload the cafe floor image and place table markers on the blueprint.</p>
+        </div>
+        <a href="{{ route('admin.tables') }}"
+            class="tc-admin-btn-secondary inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2 text-sm">
+            <i class="fa-solid fa-arrow-left text-xs" aria-hidden="true"></i>
+            Back to Floor Map
+        </a>
+    </div>
 @endsection
 
 @push('scripts')
@@ -11,16 +23,11 @@
 @endpush
 
 @section('content')
-    {{-- Match Auto Table shell: top padding under header + horizontal inset (same rhythm as seat map) --}}
-    <div
-        class="seating-full-editor-shell -mt-1 flex min-h-0 flex-1 flex-col overflow-hidden bg-panel-canvas pt-2 pl-4 md:-mt-0 md:pt-3 md:pl-5 lg:pl-6 -mx-5 -mb-6 md:-mx-6 md:-mb-8">
-        @include('admin.partials.seating-map-inner-styles')
+    <div class="space-y-3">
         @include('admin.partials.seating-map-inner', [
-            'dashboardEmbed' => false,
             'fullEditor' => true,
-            'showToolbar' => false,
+            'showToolbar' => true,
+            'enableGrouping' => false,
         ])
-        </div>
-
-        @include('admin.partials.seat-focus-mode-script')
+    </div>
 @endsection

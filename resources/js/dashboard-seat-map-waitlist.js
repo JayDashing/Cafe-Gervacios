@@ -80,7 +80,10 @@ function bindDashboardSeatDotGestures() {
             }
             const { seating } = ctx;
             const dot = e.target.closest('.seating-seat-dot');
-            if (!dot || !seating.contains(dot)) {
+            const group = dot ? null : e.target.closest('[data-seating-group][data-table-id]');
+            const target = dot ?? group;
+
+            if (!target || !seating.contains(target)) {
                 return;
             }
 
@@ -88,7 +91,7 @@ function bindDashboardSeatDotGestures() {
                 return;
             }
 
-            const tid = parseInt(dot.getAttribute('data-table-id'), 10);
+            const tid = parseInt(target.getAttribute('data-table-id'), 10);
             if (!Number.isFinite(tid)) {
                 return;
             }
@@ -108,7 +111,7 @@ function bindDashboardSeatDotGestures() {
             }
 
             lastTableOpsTableId = tid;
-            const rect = dot.getBoundingClientRect();
+            const rect = target.getBoundingClientRect();
             window.Livewire.dispatch('table-ops-select', {
                 tableId: tid,
                 left: rect.left + rect.width / 2,

@@ -145,14 +145,26 @@ Route::middleware([AdminNotFound::class, AdminRole::class, 'admin.timeout', 'for
 
         Route::get('/api/seats', [SeatApiController::class, 'index'])->name('api.seats');
         Route::post('/api/seats/update', [SeatApiController::class, 'update'])->name('api.seats.update');
+        Route::get('/api/tables/operations', [SeatApiController::class, 'plannerIndex'])->name('api.tables.operations');
+        Route::post('/api/tables/operations/status', [SeatApiController::class, 'plannerStatus'])->name('api.tables.operations.status');
+        Route::post('/api/tables/operations/merge-groups', [SeatApiController::class, 'plannerMergeGroups'])->name('api.tables.operations.merge-groups');
 
         Route::middleware(EnsureAdminOnly::class)->group(function () {
+            Route::get('/system-logs', [AdminController::class, 'systemLogs'])->name('system-logs');
+            Route::redirect('/qa-proof', '/admin/system-logs')->name('qa-proof');
             Route::get('/seating-analytics', [AdminController::class, 'seatingAnalytics'])->name('seating-analytics');
             Route::get('/seating-layout', SeatingLayoutController::class)->name('seating-layout');
             Route::post('/seating-layout/floorplan', FloorplanUploadController::class)->name('seating-layout.floorplan');
             Route::post('/api/seats/group', [SeatApiController::class, 'group'])->name('api.seats.group');
+            Route::post('/api/seats/unmerge', [SeatApiController::class, 'unmerge'])->name('api.seats.unmerge');
             Route::post('/api/seats/place', [SeatApiController::class, 'place'])->name('api.seats.place');
             Route::post('/api/seats/delete', [SeatApiController::class, 'destroy'])->name('api.seats.delete');
+            Route::get('/api/seats/planner', [SeatApiController::class, 'plannerIndex'])->name('api.seats.planner');
+            Route::post('/api/seats/planner/table', [SeatApiController::class, 'plannerStore'])->name('api.seats.planner.store');
+            Route::post('/api/seats/planner/save', [SeatApiController::class, 'plannerSave'])->name('api.seats.planner.save');
+            Route::post('/api/seats/planner/status', [SeatApiController::class, 'plannerStatus'])->name('api.seats.planner.status');
+            Route::post('/api/seats/planner/merge-groups', [SeatApiController::class, 'plannerMergeGroups'])->name('api.seats.planner.merge-groups');
+            Route::post('/api/seats/planner/delete', [SeatApiController::class, 'plannerDelete'])->name('api.seats.planner.delete');
 
             Route::get('/staff', [StaffController::class, 'index'])->name('staff.index');
             Route::get('/staff/create', [StaffController::class, 'create'])->name('staff.create');

@@ -22,7 +22,7 @@ class SecurityHeaders
             // TODO: Replace with nonces in future iteration
             $response->headers->set(
                 'Content-Security-Policy',
-                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com; font-src 'self' https://fonts.gstatic.com https://api.fontshare.com https://cdn.fontshare.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://api.paymongo.com https://*.paymongo.com"
+                "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://api.fontshare.com https://cdn.fontshare.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.paymongo.com https://*.paymongo.com ws: wss:; frame-src 'self' https://api.paymongo.com https://*.paymongo.com https://maps.google.com https://www.google.com"
             );
         }
 

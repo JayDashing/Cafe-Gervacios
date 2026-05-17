@@ -43,13 +43,18 @@ class BookingGuardService
     /**
      * True if this phone already has a future booking that is still pending or active and not failed/cancelled.
      */
-    public function hasActivePendingReservation(string $phone): bool
+    public function hasActivePendingReservation(string $phone, bool $lockForUpdate = false): bool
     {
-        return Booking::query()
+        $query = Booking::query()
             ->where('customer_phone', $phone)
             ->whereIn('status', ['pending', 'active'])
             ->whereNotIn('payment_status', ['failed', 'cancelled'])
-            ->where('booked_at', '>', now())
-            ->exists();
+            ->where('booked_at', '>', now());
+
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+
+        return $query->exists();
     }
 }

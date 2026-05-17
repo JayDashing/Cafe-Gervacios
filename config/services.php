@@ -37,6 +37,9 @@ return [
         'public_key'     => env('PAYMONGO_PUBLIC_KEY'),
         'secret_key'     => env('PAYMONGO_SECRET_KEY'),
         'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
+        'mode'           => env('PAYMONGO_MODE', 'test'),
+        'allow_live'     => (bool) env('PAYMONGO_ALLOW_LIVE', false),
+        'webhook_tolerance_seconds' => (int) env('PAYMONGO_WEBHOOK_TOLERANCE_SECONDS', 300),
     ],
 
     'slack' => [

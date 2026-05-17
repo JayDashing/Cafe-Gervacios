@@ -47,7 +47,7 @@ class FloorplanUploadController extends Controller
         Setting::set('floorplan_image', 'images/floorplan.png');
 
         return redirect()
-            ->route('admin.seating-layout')
+            ->route('admin.tables', ['edit' => 1])
             ->with('success', 'Floor plan image saved and optimized as public/images/floorplan.jpg.');
     }
 }

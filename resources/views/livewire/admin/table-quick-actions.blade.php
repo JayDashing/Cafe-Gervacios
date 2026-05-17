@@ -1,102 +1,97 @@
 <div>
     @if ($table)
         @php
-            $statusBadge = match ($table->status) {
-                'available' => ['label' => 'Free', 'class' => 'bg-emerald-100 text-emerald-900 ring-emerald-200'],
-                'reserved' => ['label' => 'Reserved', 'class' => 'bg-amber-100 text-amber-900 ring-amber-200'],
-                'occupied' => ['label' => 'Occupied', 'class' => 'bg-rose-100 text-rose-900 ring-rose-200'],
-                'cleaning' => ['label' => 'Cleaning', 'class' => 'bg-blue-100 text-blue-900 ring-blue-200'],
-                default => ['label' => ucfirst($table->status), 'class' => 'bg-slate-100 text-slate-800 ring-slate-200'],
-            };
+            $primaryButton = 'inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60';
+            $secondaryButton = 'inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60';
         @endphp
 
         <div wire:key="table-toolbar-{{ $table->id }}-v{{ $tablesSyncVersion }}" wire:poll.5s="pollTableModal"
-            class="fixed z-[60] w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5"
+            class="fixed z-[60] w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/5"
             style="left: {{ $popoverLeft }}px; top: {{ $popoverTop }}px; transform: translate(-50%, calc(-100% - 12px));">
-            {{-- Header --}}
-            <div class="mb-3 flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+            <div class="mb-4 flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <span class="font-semibold text-slate-900">{{ $table->label }}</span>
-                        <span
-                            class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $statusBadge['class'] }}">{{ $statusBadge['label'] }}</span>
+                        <span class="text-lg font-black leading-tight text-slate-950">{{ $table->label }}</span>
+                        <x-status-badge :status="$table->status" size="md" />
                     </div>
-                    <p class="mt-1.5 text-xs text-slate-600">
-                        <span class="font-medium text-slate-500">Party:</span>
-                        {{ $partyDisplay ?? '—' }}
-                    </p>
-                    @if ($table->status === 'reserved')
-                        <p class="mt-1 text-xs text-slate-600">
-                            <span class="font-medium text-slate-500">Arriving:</span>
-                            {{ $arrivalDisplay ?? '--' }}
-                        </p>
-                    @elseif ($table->status === 'occupied' && $seatedDisplay)
-                        <p class="mt-1 text-xs text-slate-600">
-                            <span class="font-medium text-slate-500">Seated:</span>
-                            {{ $seatedDisplay }}
-                        </p>
-                    @endif
+                    <div class="mt-2 grid gap-1 text-xs text-slate-600">
+                        <span><span class="font-semibold text-slate-500">Seats:</span> {{ $partyDisplay ?? '-' }}</span>
+                        @if ($table->status === 'reserved')
+                            <span><span class="font-semibold text-slate-500">Arriving:</span> {{ $arrivalDisplay ?? '-' }}</span>
+                        @elseif ($table->status === 'occupied' && $seatedDisplay)
+                            <span><span class="font-semibold text-slate-500">Seated:</span> {{ $seatedDisplay }}</span>
+                        @endif
+                    </div>
                 </div>
                 <button type="button" wire:click="clearSelection"
-                    class="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-800 transition hover:bg-slate-100">
-                    Done
+                    class="inline-flex min-h-[36px] min-w-[36px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100"
+                    aria-label="Close table actions">
+                    <i class="fa-solid fa-xmark text-sm" aria-hidden="true"></i>
                 </button>
             </div>
 
             @can('update', $table)
-                <div class="flex flex-wrap gap-2">
+                <div class="grid gap-2">
                     @if ($table->status === 'available')
-                        <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'reserved')"
-                            wire:loading.attr="disabled"
-                            wire:target="applyStatusFromSelect"
-                            class="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-950 hover:bg-amber-100">
-                            Reserve
-                        </button>
                         <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'occupied')"
                             wire:loading.attr="disabled"
                             wire:target="applyStatusFromSelect"
-                            class="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-950 hover:bg-rose-100">
+                            class="{{ $primaryButton }} bg-rose-600 text-white hover:bg-rose-700">
+                            <i class="fa-solid fa-chair" aria-hidden="true"></i>
                             Seat Guests
                         </button>
-                        <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'cleaning')"
-                            wire:loading.attr="disabled"
-                            wire:target="applyStatusFromSelect"
-                            class="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-950 hover:bg-blue-100">
-                            Set Cleaning
-                        </button>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'reserved')"
+                                wire:loading.attr="disabled"
+                                wire:target="applyStatusFromSelect"
+                                class="{{ $secondaryButton }} border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100">
+                                <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+                                Reserve
+                            </button>
+                            <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'cleaning')"
+                                wire:loading.attr="disabled"
+                                wire:target="applyStatusFromSelect"
+                                class="{{ $secondaryButton }} border-blue-200 bg-blue-50 text-blue-950 hover:bg-blue-100">
+                                <i class="fa-solid fa-broom" aria-hidden="true"></i>
+                                Cleaning
+                            </button>
+                        </div>
                     @elseif ($table->status === 'reserved')
                         <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'occupied')"
                             wire:loading.attr="disabled"
                             wire:target="applyStatusFromSelect"
-                            class="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-950 hover:bg-rose-100">
+                            class="{{ $primaryButton }} bg-rose-600 text-white hover:bg-rose-700">
+                            <i class="fa-solid fa-chair" aria-hidden="true"></i>
                             Seat Guests
                         </button>
                         <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'available')"
                             wire:loading.attr="disabled"
                             wire:target="applyStatusFromSelect"
-                            class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50">
+                            class="{{ $secondaryButton }} border-slate-200 bg-white text-slate-800 hover:bg-slate-50">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
                             Free Table
                         </button>
                     @elseif ($table->status === 'occupied')
                         <div class="w-full min-w-0" x-data="{ confirmCheckout: false }">
                             <button type="button" x-show="!confirmCheckout" @click="confirmCheckout = true"
-                                class="w-full rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-left text-xs font-semibold text-blue-950 hover:bg-blue-100">
-                                Guest Checked Out → Set Cleaning
+                                class="{{ $primaryButton }} bg-blue-600 text-white hover:bg-blue-700">
+                                <i class="fa-solid fa-broom" aria-hidden="true"></i>
+                                Check Out
                             </button>
-                            <div x-show="confirmCheckout" class="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                <p class="text-xs leading-snug text-slate-700">
-                                    Mark guests as checked out and set table to cleaning?
+                            <div x-show="confirmCheckout" class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-xs font-medium leading-snug text-slate-700">
+                                    Move this table to cleaning?
                                 </p>
-                                <div class="flex flex-wrap gap-2">
+                                <div class="grid gap-2 sm:grid-cols-2">
                                     <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'cleaning')"
                                         @click="confirmCheckout = false"
                                         wire:loading.attr="disabled"
                                         wire:target="applyStatusFromSelect"
-                                        class="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-950 hover:bg-blue-100">
-                                        Yes, check out
+                                        class="{{ $secondaryButton }} border-blue-200 bg-blue-50 text-blue-950 hover:bg-blue-100">
+                                        Yes
                                     </button>
                                     <button type="button" @click="confirmCheckout = false"
-                                        class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50">
+                                        class="{{ $secondaryButton }} border-slate-200 bg-white text-slate-800 hover:bg-slate-50">
                                         Cancel
                                     </button>
                                 </div>
@@ -104,8 +99,11 @@
                         </div>
                     @elseif ($table->status === 'cleaning')
                         <button type="button" wire:click="markReadyAfterCleaning({{ $table->id }})"
-                            class="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-100">
-                            Mark Free
+                            wire:loading.attr="disabled"
+                            wire:target="markReadyAfterCleaning"
+                            class="{{ $primaryButton }} bg-emerald-600 text-white hover:bg-emerald-700">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                            Mark Ready
                         </button>
                     @endif
                 </div>

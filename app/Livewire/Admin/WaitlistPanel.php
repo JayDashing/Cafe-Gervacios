@@ -12,7 +12,6 @@ use App\Services\AutomationSettings;
 use App\Services\QueueService;
 use App\Services\TableService;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -36,6 +35,14 @@ class WaitlistPanel extends Component
 
     public bool $showBusyHoursModal = false;
 
+    public string $activeTab = 'waiting';
+
+    public string $search = '';
+
+    public string $priorityFilter = 'all';
+
+    public string $partySizeFilter = 'all';
+
     public string $busyPeakStart = '17:00';
 
     public string $busyPeakEnd = '22:00';
@@ -47,6 +54,15 @@ class WaitlistPanel extends Component
 
     /** @var array<int, int> Selected table id per queue entry (notified + hold code flow). */
     public array $seatTablePick = [];
+
+    public function setActiveTab(string $tab): void
+    {
+        if (! in_array($tab, ['waiting', 'notified', 'seated', 'cancelled'], true)) {
+            return;
+        }
+
+        $this->activeTab = $tab;
+    }
 
     #[On('table-selected')]
     public function syncTableSelection(?int $tableId): void
@@ -189,10 +205,37 @@ class WaitlistPanel extends Component
 
         $priorityQueue = QueueEntry::waiting()->where('priority_score', 100)->sorted()->get();
         $regularQueue = QueueEntry::waiting()->where('priority_score', 0)->sorted()->get();
+        $waitingGuests = $priorityQueue->concat($regularQueue)->values();
 
         $notifiedHold = QueueEntry::query()
             ->where('status', 'notified')
             ->orderByDesc('notified_at')
+            ->get();
+
+        $seatedGuests = QueueEntry::query()
+            ->where('status', 'seated')
+            ->latest('seated_at')
+            ->latest('updated_at')
+            ->take(8)
+            ->get();
+
+        $summary = [
+            'waiting' => $waitingGuests->count(),
+            'notified' => $notifiedHold->count(),
+            'seated_today' => QueueEntry::query()
+                ->where('status', 'seated')
+                ->whereDate('seated_at', now()->toDateString())
+                ->count(),
+            'cancelled_today' => QueueEntry::query()
+                ->where('status', 'cancelled')
+                ->whereDate('updated_at', now()->toDateString())
+                ->count(),
+        ];
+
+        $cancelledGuests = QueueEntry::query()
+            ->where('status', 'cancelled')
+            ->latest('updated_at')
+            ->take(8)
             ->get();
 
         $availableTables = Table::query()
@@ -225,7 +268,14 @@ class WaitlistPanel extends Component
         return view('livewire.admin.waitlist-panel', [
             'priorityQueue' => $priorityQueue,
             'regularQueue' => $regularQueue,
+            'waitingGuests' => $this->filterEntries($waitingGuests),
             'notifiedHold' => $notifiedHold,
+            'filteredNotifiedGuests' => $this->filterEntries($notifiedHold),
+            'seatedGuests' => $seatedGuests,
+            'filteredSeatedGuests' => $this->filterEntries($seatedGuests),
+            'cancelledGuests' => $cancelledGuests,
+            'filteredCancelledGuests' => $this->filterEntries($cancelledGuests),
+            'summary' => $summary,
             'waitlistHints' => $hints,
             'availableTables' => $availableTables,
             'noShowBookings' => $noShowBookings,
@@ -235,6 +285,47 @@ class WaitlistPanel extends Component
             'autoSmsOn' => $autoSmsOn,
             'peakOverrideOn' => $peakOverrideOn,
         ]);
+    }
+
+    private function filterEntries($entries)
+    {
+        $term = str($this->search)->trim()->lower()->toString();
+        $priority = strtolower($this->priorityFilter);
+        $party = strtolower($this->partySizeFilter);
+        return $entries->filter(function (QueueEntry $entry) use ($term, $priority, $party) {
+            if ($priority === 'priority' && ! $entry->isPriority()) {
+                return false;
+            }
+
+            if ($priority === 'standard' && $entry->isPriority()) {
+                return false;
+            }
+
+            if (in_array($priority, ['pwd', 'senior', 'pregnant'], true)
+                && strtolower((string) $entry->priority_type) !== $priority) {
+                return false;
+            }
+
+            $size = (int) $entry->party_size;
+            if ($party === '1-2' && ($size < 1 || $size > 2)) {
+                return false;
+            }
+            if ($party === '3-4' && ($size < 3 || $size > 4)) {
+                return false;
+            }
+            if ($party === '5-plus' && $size < 5) {
+                return false;
+            }
+
+            if ($term === '') {
+                return true;
+            }
+
+            return str_contains(strtolower((string) $entry->customer_name), $term)
+                || str_contains(strtolower((string) $entry->customer_phone), $term)
+                || str_contains(strtolower((string) $entry->source), $term)
+                || str_contains((string) $entry->queue_display_number, $term);
+        })->values();
     }
 
     public function seatCustomer(int $entryId, mixed $tableId): bool
@@ -287,39 +378,13 @@ class WaitlistPanel extends Component
         $entry = QueueEntry::findOrFail($entryId);
         Gate::authorize('update', $entry);
 
-        $hold = (int) Setting::get('automation_queue_hold_minutes', config('automation.queue_hold_minutes', 1));
-
-        if ($entry->status === 'waiting') {
-            $entry->update([
-                'status' => 'notified',
-                'notified_at' => now(),
-                'hold_expires_at' => now()->addMinutes($hold),
-                'hold_confirmation_code' => strtoupper(Str::random(6)),
-            ]);
-        } elseif ($entry->status === 'notified') {
-            // Resend while on hold — refresh hold window
-            $attrs = [
-                'notified_at' => now(),
-                'hold_expires_at' => now()->addMinutes($hold),
-            ];
-            if ($entry->hold_confirmation_code === null || $entry->hold_confirmation_code === '') {
-                $attrs['hold_confirmation_code'] = strtoupper(Str::random(6));
-            }
-            $entry->update($attrs);
-        } else {
-            return;
+        try {
+            app(QueueService::class)->notifyEntryManually($entryId);
+            $this->dispatch('tables-refresh');
+            $this->dispatch('notify', type: 'success', message: 'SMS sent.');
+        } catch (\Throwable $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
         }
-
-        $entry->refresh();
-
-        dispatch(new SendSmsJob($entry->customer_phone, 'table_ready', [
-            'name' => $entry->customer_name,
-            'venue' => config('app.venue_name', config('app.name')),
-            'is_priority' => $entry->isPriority(),
-            'minutes' => (string) $hold,
-            'code' => $entry->hold_confirmation_code ?? '',
-        ]));
-        $this->dispatch('notify', type: 'success', message: 'SMS sent.');
     }
 
     /**

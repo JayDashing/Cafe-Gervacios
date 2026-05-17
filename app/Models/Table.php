@@ -27,6 +27,10 @@ class Table extends Model
         'position_x',
         'position_y',
         'shape',
+        'planner_shape',
+        'layout_width',
+        'layout_height',
+        'layout_rotation',
         'furniture_type',
         'floor_col',
         'floor_row',
@@ -39,6 +43,11 @@ class Table extends Model
 
     protected $casts = [
         'is_accessible' => 'boolean',
+        'position_x' => 'float',
+        'position_y' => 'float',
+        'layout_width' => 'float',
+        'layout_height' => 'float',
+        'layout_rotation' => 'integer',
         'occupied_at' => 'datetime',
         'cleaning_started_at' => 'datetime',
     ];

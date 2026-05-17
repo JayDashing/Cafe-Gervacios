@@ -26,9 +26,28 @@ class DashboardSeatMap extends Component
 
     public function render()
     {
+        $layoutData = SeatingLayoutController::layoutData();
+        $tableCounts = [
+            'available' => 0,
+            'reserved' => 0,
+            'occupied' => 0,
+            'cleaning' => 0,
+        ];
+
+        foreach ($layoutData['tableGroups'] as $group) {
+            $status = (string) ($group->table->status ?? 'available');
+            if (! array_key_exists($status, $tableCounts)) {
+                $status = 'available';
+            }
+            $tableCounts[$status]++;
+        }
+
         return view('livewire.admin.dashboard-seat-map', array_merge(
-            SeatingLayoutController::layoutData(),
-            ['seatClickMode' => $this->seatClickMode]
+            $layoutData,
+            [
+                'seatClickMode' => $this->seatClickMode,
+                'tableStatusCounts' => $tableCounts,
+            ]
         ));
     }
 }

@@ -380,6 +380,10 @@
         border-top-color: #dc2626;
     }
 
+    .seating-badge--cleaning {
+        border-top-color: #2563eb;
+    }
+
     .seating-badge-inner {
         display: flex;
         flex-direction: column;
@@ -473,6 +477,10 @@
 
     .seating-badge--occupied .seating-badge-status {
         color: #b91c1c;
+    }
+
+    .seating-badge--cleaning .seating-badge-status {
+        color: #1d4ed8;
     }
 
     .seating-badge-cap {
@@ -706,20 +714,35 @@
 
     /* Seat editor — editorial segmented control (rounded, matches base .seating-s-opts) */
     #seat-modal.seat-modal--editorial .seating-s-opts {
-        gap: 6px;
-        padding: 6px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        padding: 0;
         margin-bottom: 4px;
-        border-radius: 12px;
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
     }
 
     #seat-modal.seat-modal--editorial .seating-s-opt {
-        border-radius: 8px;
-        border: 1.5px solid #e2e8f0;
+        display: flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        border-radius: 12px;
+        border: 1px solid #d8dee8;
         background: #fff;
-        color: #171717;
-        box-shadow: none;
+        color: #334155;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+    }
+
+    #seat-modal.seat-modal--editorial .seating-s-dot {
+        display: inline-flex;
+        height: 9px;
+        width: 9px;
+        border-radius: 999px;
+        background: currentColor;
     }
 
     #seat-modal.seat-modal--editorial .seating-s-opt.av {
@@ -730,7 +753,7 @@
         background: #ecfdf5;
         border-color: #22c55e;
         color: #14532d;
-        box-shadow: 0 1px 2px rgb(22 101 52 / 0.1);
+        box-shadow: 0 0 0 3px rgb(34 197 94 / 0.14);
     }
 
     #seat-modal.seat-modal--editorial .seating-s-opt.re {
@@ -741,7 +764,7 @@
         background: #fef9c3;
         border-color: #eab308;
         color: #713f12;
-        box-shadow: 0 1px 2px rgb(161 98 7 / 0.15);
+        box-shadow: 0 0 0 3px rgb(234 179 8 / 0.16);
     }
 
     #seat-modal.seat-modal--editorial .seating-s-opt.oc {
@@ -752,7 +775,13 @@
         background: #fee2e2;
         border-color: #ef4444;
         color: #7f1d1d;
-        box-shadow: 0 1px 2px rgb(185 28 28 / 0.12);
+        box-shadow: 0 0 0 3px rgb(239 68 68 / 0.14);
+    }
+
+    @media (max-width: 520px) {
+        #seat-modal.seat-modal--editorial .seating-s-opts {
+            grid-template-columns: 1fr;
+        }
     }
 
     #seat-modal #seat-modal-delete-row details[open] .seat-modal__delete-caret {

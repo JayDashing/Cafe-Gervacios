@@ -6,11 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\QueueEntry;
 use App\Models\Seat;
+use App\Models\Setting;
 use App\Models\Table;
 use Illuminate\Support\Collection;
 
 class SeatingLayoutController extends Controller
 {
+    public const PLANNER_WIDTH = 1200;
+
+    public const PLANNER_HEIGHT = 760;
+
+    private const MERGE_GROUP_SETTING_KEY = 'floor_plan_merge_groups';
+
     /**
      * Guest name + party size for floor map badges (queue hold, booking, or walk-in).
      *
@@ -148,8 +155,209 @@ class SeatingLayoutController extends Controller
         ];
     }
 
+    /**
+     * @return array{plannerTables: array<int, array<string, mixed>>, plannerCanvas: array{width: int, height: int}}
+     */
+    public static function plannerData(): array
+    {
+        $tables = Table::query()
+            ->with(['seats' => fn ($q) => $q->orderBy('seat_index')])
+            ->orderBy('label')
+            ->orderBy('id')
+            ->get();
+
+        $activeBookings = Booking::query()
+            ->whereNotNull('table_id')
+            ->whereIn('status', ['active', 'pending'])
+            ->whereNull('no_show_at')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('table_id')
+            ->keyBy('table_id');
+
+        $bookingIds = $tables->pluck('booking_id')->filter();
+        $bookingsById = $bookingIds->isEmpty()
+            ? collect()
+            : Booking::query()->whereIn('id', $bookingIds)->get()->keyBy('id');
+
+        $rows = $tables->map(function (Table $table, int $index) use ($activeBookings, $bookingsById) {
+            $booking = $table->booking_id
+                ? $bookingsById->get($table->booking_id)
+                : $activeBookings->get($table->id);
+
+            return [
+                'id' => $table->id,
+                'label' => $table->label,
+                'capacity' => (int) $table->capacity,
+                'status' => (string) $table->status,
+                'shape' => $thisShape = self::plannerShapeFor($table),
+                'x' => self::plannerX($table, $index),
+                'y' => self::plannerY($table, $index),
+                'width' => self::plannerWidthFor($table, $thisShape),
+                'height' => self::plannerHeightFor($table, $thisShape),
+                'rotation' => (int) (($table->layout_rotation ?? 0) % 360),
+                'seat_count' => (int) $table->seats->count(),
+                'booking' => $booking ? [
+                    'id' => $booking->id,
+                    'ref' => $booking->booking_ref,
+                    'guest' => $booking->customer_name,
+                    'party' => (int) $booking->party_size,
+                    'status' => $booking->status,
+                ] : null,
+            ];
+        })->values()->all();
+
+        return [
+            'plannerTables' => $rows,
+            'mergeGroups' => self::plannerMergeGroups($tables->pluck('id')->all()),
+            'plannerCanvas' => [
+                'width' => self::PLANNER_WIDTH,
+                'height' => self::PLANNER_HEIGHT,
+            ],
+        ];
+    }
+
+    public static function plannerMergeGroups(array $validTableIds = []): array
+    {
+        $raw = Setting::get(self::MERGE_GROUP_SETTING_KEY, '[]');
+        $decoded = json_decode((string) $raw, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $valid = array_fill_keys(array_map('intval', $validTableIds), true);
+        $hasValidFilter = $validTableIds !== [];
+
+        return collect($decoded)
+            ->map(function ($group) use ($valid, $hasValidFilter) {
+                if (! is_array($group)) {
+                    return null;
+                }
+
+                $tableIds = collect($group['table_ids'] ?? $group['tableIds'] ?? [])
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => $id > 0 && (! $hasValidFilter || isset($valid[$id])))
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (count($tableIds) < 2) {
+                    return null;
+                }
+
+                $payload = [
+                    'id' => (string) ($group['id'] ?? 'merge-'.implode('-', $tableIds)),
+                    'table_ids' => $tableIds,
+                ];
+
+                foreach (['label', 'booking_ref', 'guest_name', 'source'] as $key) {
+                    $value = trim((string) ($group[$key] ?? ''));
+                    if ($value !== '') {
+                        $payload[$key] = $value;
+                    }
+                }
+
+                if (isset($group['booking_id']) && (int) $group['booking_id'] > 0) {
+                    $payload['booking_id'] = (int) $group['booking_id'];
+                }
+
+                return $payload;
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    public static function savePlannerMergeGroups(array $groups): void
+    {
+        Setting::set(self::MERGE_GROUP_SETTING_KEY, json_encode(array_values($groups)));
+    }
+
+    public static function plannerShapeFor(Table $table): string
+    {
+        $shape = strtolower((string) ($table->planner_shape ?? ''));
+        if (in_array($shape, ['square', 'rectangle', 'round', 'booth', 'counter'], true)) {
+            return $shape;
+        }
+
+        $furniture = strtolower((string) ($table->furniture_type ?? ''));
+        if ($furniture === 'booth') {
+            return 'booth';
+        }
+
+        if (in_array($furniture, ['counter', 'bar', 'bar_stool'], true)) {
+            return 'counter';
+        }
+
+        if ((string) $table->shape === 'circle') {
+            return 'round';
+        }
+
+        return (int) $table->capacity >= 6 ? 'rectangle' : 'square';
+    }
+
+    private static function plannerX(Table $table, int $index): float
+    {
+        if ($table->position_x !== null) {
+            return round((float) $table->position_x, 2);
+        }
+
+        if ($table->seats->isNotEmpty()) {
+            return round(((float) $table->seats->avg('pos_x') / 100) * self::PLANNER_WIDTH, 2);
+        }
+
+        $col = $index % 5;
+
+        return 80 + ($col * 170);
+    }
+
+    private static function plannerY(Table $table, int $index): float
+    {
+        if ($table->position_y !== null) {
+            return round((float) $table->position_y, 2);
+        }
+
+        if ($table->seats->isNotEmpty()) {
+            return round(((float) $table->seats->avg('pos_y') / 100) * self::PLANNER_HEIGHT, 2);
+        }
+
+        $row = intdiv($index, 5);
+
+        return 80 + ($row * 145);
+    }
+
+    private static function plannerWidthFor(Table $table, string $shape): float
+    {
+        if ($table->layout_width !== null) {
+            return round((float) $table->layout_width, 2);
+        }
+
+        return match ($shape) {
+            'rectangle' => 180,
+            'booth' => 168,
+            'counter' => 78,
+            'round' => 112,
+            default => 120,
+        };
+    }
+
+    private static function plannerHeightFor(Table $table, string $shape): float
+    {
+        if ($table->layout_height !== null) {
+            return round((float) $table->layout_height, 2);
+        }
+
+        return match ($shape) {
+            'rectangle' => 100,
+            'booth' => 92,
+            'counter' => 64,
+            'round' => 112,
+            default => 108,
+        };
+    }
+
     public function __invoke()
     {
-        return view('admin.seating-layout', self::layoutData());
+        return redirect()->route('admin.tables', ['edit' => 1]);
     }
 }

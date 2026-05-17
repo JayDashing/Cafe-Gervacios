@@ -24,9 +24,9 @@ return new class extends Migration {
             $table->timestamps();
 
             $table->foreign('table_id')->references('id')->on('tables');
-            $table->index('customer_phone', 'idx_phone');
-            $table->index('status', 'idx_status');
-            $table->index('booked_at', 'idx_booked');
+            $table->index('customer_phone', 'idx_bookings_phone');
+            $table->index('status', 'idx_bookings_status');
+            $table->index('booked_at', 'idx_bookings_booked');
         });
     }
 

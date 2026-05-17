@@ -1,300 +1,337 @@
-<div data-waitlist-root data-queue-total="{{ $priorityQueue->count() + $regularQueue->count() }}"
-    class="flex h-full min-h-0 w-full flex-col overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 tc-scrollbar" wire:poll.12s>
+<div data-waitlist-root data-queue-total="{{ $summary['waiting'] ?? 0 }}"
+    class="w-full space-y-4 px-3 py-3 sm:px-4 sm:py-4" wire:poll.12s>
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
 
-    {{-- Controls: Auto-SMS + busy hours + override --}}
-    <div class="mb-3 flex flex-wrap items-center gap-2">
-        @if (auth()->user()->isAdmin())
-            <button type="button" wire:click="toggleAutoSms"
-                class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ring-1 transition {{ $autoSmsOn ? 'bg-emerald-50 text-emerald-900 ring-emerald-200' : 'bg-amber-50 text-amber-950 ring-amber-200' }}">
-                <span class="h-2 w-2 rounded-full {{ $autoSmsOn ? 'bg-emerald-500' : 'bg-amber-500' }}" aria-hidden="true"></span>
-                Auto-SMS: {{ $autoSmsOn ? 'Active' : 'Paused' }}
-            </button>
-            <button type="button" wire:click="openBusyHoursModal"
-                class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50">
-                <i class="fa-regular fa-clock text-xs"></i>
-                Busy hours
-            </button>
-        @endif
-        <button type="button" wire:click="togglePeakOverride"
-            class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ring-1 transition {{ $peakOverrideOn ? 'bg-sky-50 text-sky-950 ring-sky-200' : 'border border-slate-200 bg-white text-slate-700 ring-transparent' }}">
-            Override {{ $peakOverrideOn ? 'ON' : 'off' }}
-        </button>
-        <span class="text-xs text-slate-500" title="Approximate busy window">Peak: {{ $systemStatus['diagnostics']['approx_peak_label'] ?? '—' }}</span>
-    </div>
-
-    {{-- System status (replaces static warning box) --}}
     @php
+        $summaryCards = [
+            ['label' => 'Waiting Guests', 'value' => $summary['waiting'] ?? 0, 'icon' => 'fa-users', 'tone' => 'text-slate-700'],
+            ['label' => 'Notified Guests', 'value' => $summary['notified'] ?? 0, 'icon' => 'fa-bell', 'tone' => 'text-amber-700'],
+            ['label' => 'Seated Today', 'value' => $summary['seated_today'] ?? 0, 'icon' => 'fa-chair', 'tone' => 'text-emerald-700'],
+            ['label' => 'Cancelled Today', 'value' => $summary['cancelled_today'] ?? 0, 'icon' => 'fa-ban', 'tone' => 'text-rose-700'],
+        ];
+        $tabs = [
+            'waiting' => ['label' => 'Waiting', 'count' => $summary['waiting'] ?? 0],
+            'notified' => ['label' => 'Notified', 'count' => $summary['notified'] ?? 0],
+            'seated' => ['label' => 'Seated', 'count' => ($seatedGuests ?? collect())->count()],
+            'cancelled' => ['label' => 'Cancelled', 'count' => ($cancelledGuests ?? collect())->count()],
+        ];
         $tone = $systemStatus['tone'] ?? 'ok';
-        $bar =
-            $tone === 'danger'
-                ? 'border-rose-200 bg-rose-50 text-rose-950'
-                : ($tone === 'warn'
-                    ? 'border-amber-200 bg-amber-50 text-amber-950'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-950');
     @endphp
-    <div class="mb-3 rounded-xl border px-3 py-2.5 text-xs leading-snug {{ $bar }}">
-        <div class="flex flex-wrap items-start justify-between gap-2 gap-y-2">
-            <div class="min-w-0 flex-1">
-                <p class="m-0 font-semibold">{{ $systemStatus['headline'] ?? 'Status' }}</p>
-                @if (count($systemStatus['hints'] ?? []) > 1)
-                    <ul class="mt-1.5 list-disc space-y-0.5 pl-4 opacity-95">
-                        @foreach (array_slice($systemStatus['hints'], 1) as $h)
-                            <li>{{ $h }}</li>
-                        @endforeach
-                    </ul>
-                @endif
-            </div>
-            @if (auth()->user()->isAdmin() && ($systemStatus['resume_auto_sms_available'] ?? false))
-                <button type="button" wire:click="resumeAutoSms" wire:loading.attr="disabled"
-                    class="inline-flex shrink-0 items-center justify-center rounded-lg bg-panel-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-panel-primary-hover disabled:cursor-not-allowed disabled:opacity-60">
-                    <span wire:loading.remove wire:target="resumeAutoSms">Resume SMS</span>
-                    <span wire:loading wire:target="resumeAutoSms" class="inline-flex items-center gap-1.5">
-                        <i class="fa-solid fa-spinner fa-spin text-xs" aria-hidden="true"></i>
-                        Resuming…
-                    </span>
+
+    <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-wrap items-center gap-2">
+            @if (auth()->user()->isAdmin())
+                <button type="button" wire:click="toggleAutoSms"
+                    class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ring-1 transition {{ $autoSmsOn ? 'bg-emerald-50 text-emerald-900 ring-emerald-200' : 'bg-amber-50 text-amber-950 ring-amber-200' }}">
+                    <span class="h-2 w-2 rounded-full {{ $autoSmsOn ? 'bg-emerald-500' : 'bg-amber-500' }}" aria-hidden="true"></span>
+                    Auto-SMS {{ $autoSmsOn ? 'Active' : 'Paused' }}
+                </button>
+                <button type="button" wire:click="openBusyHoursModal"
+                    class="tc-admin-btn-secondary inline-flex min-h-8 items-center gap-1.5 px-3 py-1.5 text-xs">
+                    <i class="fa-regular fa-clock text-xs" aria-hidden="true"></i>
+                    Busy Hours
                 </button>
             @endif
+            <button type="button" wire:click="togglePeakOverride"
+                class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ring-1 transition {{ $peakOverrideOn ? 'bg-sky-50 text-sky-950 ring-sky-200' : 'border border-slate-200 bg-white text-slate-700 ring-transparent' }}">
+                Override {{ $peakOverrideOn ? 'On' : 'Off' }}
+            </button>
+        </div>
+        <a href="{{ route('staff.queue') }}"
+            class="tc-admin-btn-primary inline-flex min-h-9 items-center justify-center gap-2 px-3 py-2 text-xs">
+            <i class="fa-solid fa-plus text-[10px]" aria-hidden="true"></i>
+            Add Walk-in
+        </a>
+    </div>
+
+    @if ($tone !== 'ok')
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 shadow-sm">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p class="font-semibold">No suitable free table available.</p>
+                <details class="relative">
+                    <summary class="cursor-pointer text-xs font-bold uppercase tracking-wide text-amber-900">View details</summary>
+                    <div class="mt-2 max-w-xl rounded-lg border border-amber-200 bg-white p-3 text-xs leading-relaxed text-amber-950 sm:absolute sm:right-0 sm:z-30 sm:w-96 sm:shadow-lg">
+                        <p class="font-semibold">{{ $systemStatus['headline'] ?? 'Table availability needs attention.' }}</p>
+                        @if (count($systemStatus['hints'] ?? []) > 0)
+                            <ul class="mt-2 list-disc space-y-1 pl-4">
+                                @foreach ($systemStatus['hints'] as $hint)
+                                    <li>{{ $hint }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                        @if (auth()->user()->isAdmin() && ($systemStatus['resume_auto_sms_available'] ?? false))
+                            <button type="button" wire:click="resumeAutoSms" wire:loading.attr="disabled"
+                                class="mt-3 inline-flex min-h-8 items-center justify-center rounded-lg bg-panel-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
+                                Resume SMS
+                            </button>
+                        @endif
+                    </div>
+                </details>
+            </div>
+        </div>
+    @endif
+
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        @foreach ($summaryCards as $card)
+            <div class="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{{ $card['label'] }}</p>
+                        <p class="mt-1 text-2xl font-semibold tabular-nums text-slate-950">{{ $card['value'] }}</p>
+                    </div>
+                    <i class="fa-solid {{ $card['icon'] }} {{ $card['tone'] }}" aria-hidden="true"></i>
+                </div>
+            </div>
+        @endforeach
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_170px_170px] lg:items-end">
+            <label class="block">
+                <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Search guest or phone</span>
+                <span class="relative block">
+                    <i class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400" aria-hidden="true"></i>
+                    <input type="search" wire:model.live.debounce.250ms="search"
+                        placeholder="Search name, phone, queue number"
+                        class="min-h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm text-slate-800 shadow-sm transition focus:bg-white">
+                </span>
+            </label>
+
+            <label class="block">
+                <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Priority type</span>
+                <select wire:model.live="priorityFilter"
+                    class="min-h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 shadow-sm transition focus:bg-white">
+                    <option value="all">All priorities</option>
+                    <option value="priority">Priority only</option>
+                    <option value="pwd">PWD</option>
+                    <option value="senior">Senior</option>
+                    <option value="pregnant">Pregnant</option>
+                    <option value="standard">Regular</option>
+                </select>
+            </label>
+
+            <label class="block">
+                <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Party size</span>
+                <select wire:model.live="partySizeFilter"
+                    class="min-h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 shadow-sm transition focus:bg-white">
+                    <option value="all">Any size</option>
+                    <option value="1-2">1-2 guests</option>
+                    <option value="3-4">3-4 guests</option>
+                    <option value="5-plus">5+ guests</option>
+                </select>
+            </label>
+
+            <label class="block">
+                <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Status</span>
+                <select wire:model.live="activeTab"
+                    class="min-h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 shadow-sm transition focus:bg-white">
+                    <option value="waiting">Waiting</option>
+                    <option value="notified">Notified</option>
+                    <option value="seated">Seated</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </label>
         </div>
     </div>
 
-    <div class="mb-3 flex items-start gap-2">
-        <h3 class="text-base font-bold text-slate-900">Waitlist</h3>
-        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Queue # = join order</span>
+    <div class="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <div class="grid gap-1 sm:grid-cols-4">
+            @foreach ($tabs as $value => $tab)
+                <button type="button" wire:click="setActiveTab('{{ $value }}')"
+                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition {{ $activeTab === $value ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}">
+                    {{ $tab['label'] }}
+                    <span class="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums {{ $activeTab === $value ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600' }}">
+                        {{ $tab['count'] }}
+                    </span>
+                </button>
+            @endforeach
+        </div>
     </div>
 
     @error('seatCustomer')
-        <p class="mb-2 flex items-center gap-2 text-xs font-medium text-red-600">
-            <i class="fa-solid fa-circle-exclamation"></i>{{ $message }}
+        <p class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+            <i class="fa-solid fa-circle-exclamation mr-1" aria-hidden="true"></i>{{ $message }}
         </p>
     @enderror
 
-    @if ($priorityQueue->count() > 0)
-        <div class="mb-4">
-            <h4 class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <i class="fa-solid fa-star-of-life text-xs text-amber-500"></i> Priority
-            </h4>
-            <div class="space-y-2">
-                @foreach ($priorityQueue as $entry)
-                    <div
-                        class="relative flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow">
-                        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                            <span
-                                class="rounded-full bg-panel-primary px-1.5 py-0.5 font-mono text-xs font-bold text-white">#{{ $entry->queue_display_number }}</span>
-                            @if ($entry->priority_type === 'pwd')
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-bold text-violet-900 ring-1 ring-violet-200"><i
-                                        class="fa-solid fa-wheelchair"></i> PWD</span>
-                            @elseif($entry->priority_type === 'pregnant')
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-900 ring-1 ring-rose-200"><i
-                                        class="fa-solid fa-baby"></i> PREG</span>
-                            @elseif($entry->priority_type === 'senior')
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-900 ring-1 ring-sky-200"><i
-                                        class="fa-solid fa-person-cane"></i> SC</span>
-                            @endif
-                            <span class="truncate text-sm font-semibold text-slate-900">{{ $entry->customer_name }}</span>
-                            <span class="text-xs font-medium text-slate-500">{{ $entry->party_size }}p</span>
-                            <span
-                                class="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold uppercase text-slate-600">{{ $entry->source ?? 'web' }}</span>
-                        </div>
-                        <div
-                            class="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-                            @include('livewire.admin.partials.waitlist-seat-controls', [
-                                'entry' => $entry,
-                                'availableTables' => $availableTables,
-                                'selectedTableId' => $selectedTableId,
-                                'showHoldActions' => false,
-                            ])
-                            <button type="button" wire:click="sendSmsManually({{ $entry->id }})"
-                                wire:loading.attr="disabled"
-                                wire:target="sendSmsManually"
-                                class="rounded-lg min-h-[44px] bg-panel-primary px-2.5 py-2.5 text-xs font-semibold text-white hover:bg-panel-primary-hover">
-                                SMS
-                            </button>
-                            @if (auth()->user()->isAdmin())
-                                <button type="button" wire:click="cancelEntry({{ $entry->id }})"
-                                    wire:confirm="Remove this guest from the queue?"
-                                    class="rounded-lg min-h-[44px] bg-rose-600 px-2.5 py-2.5 text-xs font-semibold text-white hover:bg-rose-700">
-                                    Remove
-                                </button>
-                            @endif
-                        </div>
-                    </div>
-                @endforeach
+    <section class="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+        @if ($activeTab === 'waiting')
+            @php
+                $priorityWaitingGuests = $waitingGuests->filter(fn ($entry) => $entry->isPriority())->values();
+                $regularWaitingGuests = $waitingGuests->filter(fn ($entry) => ! $entry->isPriority())->values();
+            @endphp
+            <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-950">Waiting Guests</h2>
+                    <p class="mt-0.5 text-xs text-slate-500">Priority guests stay above regular guests.</p>
+                </div>
             </div>
-        </div>
-    @endif
-
-    @if ($regularQueue->count() > 0)
-        <div class="mb-4">
-            <h4 class="mb-2 text-sm font-semibold text-slate-900">Regular queue</h4>
             <div class="space-y-2">
-                @foreach ($regularQueue as $entry)
-                    <div
-                        class="relative flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span
-                                class="rounded-full bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-bold text-slate-800">#{{ $entry->queue_display_number }}</span>
-                            <span class="text-sm font-medium text-slate-900">{{ $entry->customer_name }}</span>
-                            <span class="text-xs text-slate-500">{{ $entry->party_size }}p</span>
-                            <span
-                                class="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold uppercase text-slate-600">{{ $entry->source ?? 'web' }}</span>
-                        </div>
-                        <div
-                            class="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-                            @include('livewire.admin.partials.waitlist-seat-controls', [
-                                'entry' => $entry,
-                                'availableTables' => $availableTables,
-                                'selectedTableId' => $selectedTableId,
-                                'showHoldActions' => false,
-                            ])
-                            <button type="button" wire:click="sendSmsManually({{ $entry->id }})"
-                                wire:loading.attr="disabled"
-                                wire:target="sendSmsManually"
-                                class="rounded-lg min-h-[44px] bg-panel-primary px-2.5 py-2.5 text-xs font-semibold text-white hover:bg-panel-primary-hover">
-                                SMS
-                            </button>
-                            @if (auth()->user()->isAdmin())
-                                <button type="button" wire:click="cancelEntry({{ $entry->id }})"
-                                    wire:confirm="Remove this guest from the queue?"
-                                    class="rounded-lg min-h-[44px] bg-rose-600 px-2.5 py-2.5 text-xs font-semibold text-white hover:bg-rose-700">
-                                    Remove
-                                </button>
-                            @endif
-                        </div>
-                    </div>
-                @endforeach
+                @if ($priorityWaitingGuests->isNotEmpty())
+                    <h3 class="px-1 pb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Waiting Guests - Priority Queue</h3>
+                    @foreach ($priorityWaitingGuests as $entry)
+                        @include('livewire.admin.partials.waitlist-entry-card', [
+                            'entry' => $entry,
+                            'availableTables' => $availableTables,
+                            'selectedTableId' => $selectedTableId,
+                            'mode' => 'waiting',
+                        ])
+                    @endforeach
+                @endif
+
+                @if ($regularWaitingGuests->isNotEmpty())
+                    <h3 class="px-1 pb-1 pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Waiting Guests - Regular</h3>
+                    @foreach ($regularWaitingGuests as $entry)
+                        @include('livewire.admin.partials.waitlist-entry-card', [
+                            'entry' => $entry,
+                            'availableTables' => $availableTables,
+                            'selectedTableId' => $selectedTableId,
+                            'mode' => 'waiting',
+                        ])
+                    @endforeach
+                @endif
+
+                @if ($waitingGuests->isEmpty())
+                    <p class="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-8 text-center text-sm text-slate-500">
+                        No waiting guests match the current filters.
+                    </p>
+                @endif
             </div>
-        </div>
-    @endif
-
-    @if ($priorityQueue->count() === 0 && $regularQueue->count() === 0)
-        <p class="py-6 text-center text-sm text-slate-500">
-            <i class="fa-solid fa-mug-hot mb-2 block text-2xl text-slate-300"></i>
-            No walk-ins waiting
-        </p>
-    @endif
-
-    @if (isset($notifiedHold) && $notifiedHold->count() > 0)
-        <div class="mt-4 border-t border-slate-200 pt-4">
-            <h4 class="mb-2 flex items-center gap-2 text-sm font-bold text-slate-900">
-                <i class="fa-solid fa-mobile-screen text-slate-600"></i> Texted, on hold
-            </h4>
-            <p class="mb-3 text-xs text-slate-600">Hold countdown — please seat or extend before it expires.</p>
-            <div class="space-y-2">
-                @foreach ($notifiedHold as $entry)
-                    <div
-                        class="relative flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-amber-50/40 p-4 text-sm shadow-sm">
-                        <div class="flex flex-wrap items-center gap-2">
-                            @if ($entry->isPriority())
-                                <span
-                                    class="rounded-md bg-panel-primary px-1.5 py-0.5 text-xs font-bold uppercase text-white">Priority</span>
-                            @endif
-                            <span class="font-semibold text-slate-900">{{ $entry->customer_name }}</span>
-                            <span class="text-xs text-slate-600">{{ $entry->party_size }}p</span>
-                            @if ($entry->hold_expires_at)
-                                <span class="text-xs font-medium text-slate-700">Until
-                                    {{ $entry->hold_expires_at->format('g:i A') }}</span>
-                                <span class="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-amber-900 ring-1 ring-amber-200"
-                                    data-hold-expires="{{ $entry->hold_expires_at->toIso8601String() }}">
-                                    <i class="fa-regular fa-hourglass-half text-xs"></i>
-                                    <span class="tc-hold-remaining">—</span>
-                                </span>
-                            @endif
-                        </div>
-                        <div
-                            class="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-                            @include('livewire.admin.partials.waitlist-seat-controls', [
-                                'entry' => $entry,
-                                'availableTables' => $availableTables,
-                                'selectedTableId' => $selectedTableId,
-                                'showHoldActions' => true,
-                            ])
-                            <button type="button" wire:click="sendSmsManually({{ $entry->id }})"
-                                wire:loading.attr="disabled"
-                                wire:target="sendSmsManually"
-                                class="rounded-lg min-h-[44px] bg-panel-primary px-2.5 py-2.5 text-xs font-semibold text-white hover:bg-panel-primary-hover">
-                                SMS
-                            </button>
-                        </div>
-                    </div>
-                @endforeach
+        @elseif ($activeTab === 'notified')
+            <div class="mb-3">
+                <h2 class="text-sm font-semibold text-slate-950">Notified Guests</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Guests with active table holds and confirmation codes.</p>
             </div>
-        </div>
-    @endif
-
-    <div class="mt-6 border-t border-slate-200 pt-4">
-        <h4 class="mb-2 text-sm font-semibold text-slate-900">Reservations (awaiting check-in)</h4>
-        @error('markBookingNoShow')
-            <p class="mb-2 text-xs text-red-600">{{ $message }}</p>
-        @enderror
-        @if ($noShowBookings->count() > 0)
             <div class="space-y-2">
-                @foreach ($noShowBookings as $booking)
-                    <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/80 p-3">
-                        <div class="text-sm text-slate-900">
-                            <span class="font-semibold">{{ $booking->customer_name }}</span>
-                            <span class="ml-2 font-mono text-xs text-slate-600">{{ $booking->booking_ref }}</span>
-                            <span class="ml-2 text-xs text-slate-600">{{ $booking->party_size }}p</span>
-                            <span
-                                class="block text-xs text-slate-600 sm:ml-2 sm:inline">{{ $booking->booked_at?->format('M j, g:i A') }}</span>
-                        </div>
-                        <div>
-                            @if ($booking->payment_status === 'pending' && $booking->status === 'pending')
-                                <span class="text-xs text-slate-600">Awaiting payment</span>
-                            @else
-                                <button type="button" wire:click="markBookingNoShow({{ $booking->id }})"
-                                    wire:confirm="Mark this reservation as no-show? The customer will receive the no-show SMS and any assigned table will be released."
-                                    class="rounded-xl bg-panel-primary px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-panel-primary-hover">
-                                    Mark as No-show
-                                </button>
-                            @endif
-                        </div>
-                    </div>
-                @endforeach
+                @forelse ($filteredNotifiedGuests as $entry)
+                    @include('livewire.admin.partials.waitlist-entry-card', [
+                        'entry' => $entry,
+                        'availableTables' => $availableTables,
+                        'selectedTableId' => $selectedTableId,
+                        'mode' => 'notified',
+                    ])
+                @empty
+                    <p class="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-8 text-center text-sm text-slate-500">
+                        No notified guests match the current filters.
+                    </p>
+                @endforelse
+            </div>
+        @elseif ($activeTab === 'seated')
+            <div class="mb-3">
+                <h2 class="text-sm font-semibold text-slate-950">Seated Guests</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Recently seated walk-in guests.</p>
+            </div>
+            <div class="space-y-2">
+                @forelse ($filteredSeatedGuests as $entry)
+                    @include('livewire.admin.partials.waitlist-entry-card', [
+                        'entry' => $entry,
+                        'availableTables' => $availableTables,
+                        'selectedTableId' => $selectedTableId,
+                        'mode' => 'seated',
+                    ])
+                @empty
+                    <p class="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-8 text-center text-sm text-slate-500">
+                        No seated guests match the current filters.
+                    </p>
+                @endforelse
             </div>
         @else
-            <p class="text-sm text-slate-500">None</p>
+            <div class="mb-3">
+                <h2 class="text-sm font-semibold text-slate-950">Cancelled Guests</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Recently cancelled waitlist entries.</p>
+            </div>
+            <div class="space-y-2">
+                @forelse ($filteredCancelledGuests as $entry)
+                    @include('livewire.admin.partials.waitlist-entry-card', [
+                        'entry' => $entry,
+                        'availableTables' => $availableTables,
+                        'selectedTableId' => $selectedTableId,
+                        'mode' => 'cancelled',
+                    ])
+                @empty
+                    <p class="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-8 text-center text-sm text-slate-500">
+                        No cancelled guests match the current filters.
+                    </p>
+                @endforelse
+            </div>
         @endif
-    </div>
+    </section>
 
-    {{-- Busy hours modal --}}
+    <section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-950">Reservations Awaiting Check-in</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Manual no-show action stays available for reservation follow-up.</p>
+            </div>
+        </div>
+        @error('markBookingNoShow')
+            <p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{{ $message }}</p>
+        @enderror
+        <div class="mt-3 space-y-2">
+            @forelse ($noShowBookings as $booking)
+                <div class="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0 text-sm text-slate-900">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="truncate font-semibold">{{ $booking->customer_name }}</span>
+                            <span class="font-mono text-xs text-slate-600">{{ $booking->booking_ref }}</span>
+                            <x-status-badge :status="$booking->status" size="xs" />
+                            <span class="text-xs text-slate-600">{{ $booking->party_size }} guests</span>
+                        </div>
+                        <p class="mt-1 text-xs text-slate-600">{{ $booking->booked_at?->format('M j, g:i A') }}</p>
+                    </div>
+                    @if ($booking->payment_status === 'pending' && $booking->status === 'pending')
+                        <span class="text-xs font-semibold text-slate-600">Awaiting payment</span>
+                    @else
+                        <button type="button" wire:click="markBookingNoShow({{ $booking->id }})"
+                            wire:confirm="Mark this reservation as no-show? The customer will receive the no-show SMS and any assigned table will be released."
+                            class="tc-admin-btn-secondary inline-flex min-h-9 items-center justify-center px-3 py-2 text-xs">
+                            Mark as No-show
+                        </button>
+                    @endif
+                </div>
+            @empty
+                <p class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">None</p>
+            @endforelse
+        </div>
+    </section>
+
     @if ($showBusyHoursModal)
         <div class="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4" wire:click.self="closeBusyHoursModal">
             <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" @click.stop>
                 <h3 class="text-base font-bold text-slate-900">Busy hours (auto table-ready SMS)</h3>
-                <p class="mt-1 text-xs text-slate-600">When “learn from waitlist” is on, peak hours are estimated from traffic;
-                    otherwise fixed window applies.</p>
+                <p class="mt-1 text-xs text-slate-600">When learn from waitlist is on, peak hours are estimated from traffic; otherwise fixed window applies.</p>
                 <div class="mt-4 space-y-3">
                     <label class="flex items-center gap-2 text-sm font-medium text-slate-800">
-                        <input type="checkbox" wire:model.live="busyLearnFromQueue" class="rounded border-slate-300" />
+                        <input type="checkbox" wire:model.live="busyLearnFromQueue" class="rounded border-slate-300">
                         Learn busy hours from waitlist joins
                     </label>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-600">Start</label>
                             <input type="time" wire:model="busyPeakStart"
-                                class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                                class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600">End</label>
                             <input type="time" wire:model="busyPeakEnd"
-                                class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                                class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
                         </div>
                     </div>
                 </div>
                 <div class="mt-5 flex justify-end gap-2">
                     <button type="button" wire:click="closeBusyHoursModal"
-                        class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                        class="tc-admin-btn-secondary inline-flex min-h-10 items-center justify-center px-4 py-2 text-sm">Cancel</button>
                     <button type="button" wire:click="saveBusyHours"
-                        class="rounded-lg bg-panel-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90">Save</button>
+                        class="tc-admin-btn-primary inline-flex min-h-10 items-center justify-center px-4 py-2 text-sm">Save</button>
                 </div>
             </div>
         </div>
     @endif
 
-    {{-- Quick seat overlay --}}
     @if ($seatQuickPickEntryId && $quickPickEntry)
         <div class="fixed inset-0 z-[130] flex items-end justify-center bg-black/45 p-4 sm:items-center" wire:click.self="closeSeatQuickPick">
             <div class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
@@ -302,7 +339,8 @@
                 <div class="flex items-start justify-between gap-2">
                     <div>
                         <h3 class="text-base font-bold text-slate-900">Seat {{ $quickPickEntry->customer_name }}</h3>
-                        <p class="text-xs text-slate-600">{{ $quickPickEntry->party_size }} guests — best fit first</p>
+                        <x-priority-summary :entry="$quickPickEntry" class="mt-2" />
+                        <p class="text-xs text-slate-600">{{ $quickPickEntry->party_size }} guests - best fit first</p>
                     </div>
                     <button type="button" wire:click="closeSeatQuickPick" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
                         aria-label="Close">&times;</button>
@@ -312,11 +350,14 @@
                         <button type="button" wire:click="seatFromQuickPick({{ $quickPickEntry->id }}, {{ $t->id }})"
                             class="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-900 transition hover:border-sky-300 hover:bg-sky-50">
                             <span>{{ $t->capacity }} seats ({{ $t->label }})</span>
-                            <span class="text-xs font-medium text-slate-600">{{ $t->capacity }}p cap ·
+                            <span class="text-xs font-medium text-slate-600">{{ $t->capacity }}p cap -
                                 @if ($t->capacity == $quickPickEntry->party_size)
                                     <span class="text-emerald-700">exact fit</span>
                                 @else
                                     +{{ $t->capacity - $quickPickEntry->party_size }} spare
+                                @endif
+                                @if ($t->is_accessible)
+                                    <span class="ml-1 text-sky-700">Accessible</span>
                                 @endif
                             </span>
                         </button>

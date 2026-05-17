@@ -13,9 +13,13 @@
                             <span class="rounded-full bg-panel-primary px-2.5 py-1 text-sm font-bold text-white">#{{ $entry->queue_display_number }}</span>
                             <span class="text-lg font-semibold text-white">{{ $entry->customer_name }}</span>
                             <span class="text-sm text-slate-200">{{ $entry->party_size }}p</span>
-                            <span class="rounded-full px-2.5 py-1 text-sm font-bold {{ $entry->status === 'notified' ? 'bg-amber-200 text-amber-900' : 'bg-emerald-200 text-emerald-900' }}">
-                                {{ strtoupper($entry->status) }}
-                            </span>
+                            @if ($entry->isPriority())
+                                <x-status-badge status="priority" size="sm" />
+                                <x-status-badge :status="$entry->priority_type" size="sm" />
+                            @else
+                                <x-status-badge status="standard" size="sm" />
+                            @endif
+                            <x-status-badge :status="$entry->status" size="sm" />
                         </div>
                     </div>
                     <button type="button" wire:click="goToFloorMapForSeat({{ $entry->id }})"
@@ -45,6 +49,7 @@
                             </span>
                             <span class="text-lg font-semibold text-slate-900">{{ $booking->customer_name }}</span>
                             <span class="text-sm text-slate-600">{{ $booking->party_size }}p</span>
+                            <x-status-badge :status="$booking->status" size="sm" />
                             <span class="rounded-full bg-slate-200 px-2.5 py-1 text-sm font-semibold text-slate-800">
                                 {{ $booking->table?->label ?? 'Unassigned' }}
                             </span>
@@ -61,4 +66,3 @@
         </div>
     </section>
 </div>
-

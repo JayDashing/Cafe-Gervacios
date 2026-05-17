@@ -1,9 +1,11 @@
 @extends('layouts.admin')
 
-@section('page_title', 'Seating analytics')
+@section('page_title', 'Reports & Analytics')
 
 @section('panel_heading')
-    <x-admin-panel-heading title="Seating analytics" />
+    <x-admin-panel-heading
+        title="Reports & Analytics"
+        subtitle="View booking, queue, and table performance." />
 @endsection
 
 @section('content')

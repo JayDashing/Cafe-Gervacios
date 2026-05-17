@@ -381,6 +381,90 @@ class QueueService
         $this->notifyNextMatchingTables();
     }
 
+    public function notifyEntryManually(int $entryId): QueueEntry
+    {
+        $holdMinutes = AutomationSettings::int('automation_queue_hold_minutes', (int) config('automation.queue_hold_minutes', 1));
+        $venueName = config('app.venue_name', config('app.name'));
+
+        $reservedTableId = null;
+
+        DB::transaction(function () use ($entryId, $holdMinutes, &$reservedTableId) {
+            $entry = QueueEntry::query()->whereKey($entryId)->lockForUpdate()->firstOrFail();
+
+            if (! in_array($entry->status, ['waiting', 'notified'], true)) {
+                throw new \InvalidArgumentException('This waitlist entry cannot be notified.');
+            }
+
+            if (trim((string) $entry->customer_phone) === '') {
+                throw new \InvalidArgumentException('This guest has no phone number for SMS.');
+            }
+
+            $table = null;
+
+            if ($entry->reserved_table_id !== null) {
+                $held = Table::query()->whereKey($entry->reserved_table_id)->lockForUpdate()->first();
+                if ($held !== null && $this->tableFitsEntry($entry, $held)) {
+                    if ($held->status === 'reserved') {
+                        $table = $held;
+                    } elseif ($held->status === 'available' && $held->reserve()) {
+                        $table = $held->refresh();
+                    }
+                }
+            }
+
+            if ($table === null) {
+                $availableTables = Table::query()
+                    ->where('status', 'available')
+                    ->where('capacity', '>=', $entry->party_size)
+                    ->orderBy('capacity')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+
+                $table = $this->sortTablesForParty($availableTables, $entry)->first();
+
+                if ($table === null) {
+                    throw new \InvalidArgumentException('No free table fits this party.');
+                }
+
+                if (! $table->reserve()) {
+                    throw new \RuntimeException('Table could not be held. Please try again.');
+                }
+
+                $table->refresh();
+            }
+
+            $attrs = [
+                'status' => 'notified',
+                'notified_at' => now(),
+                'hold_expires_at' => now()->addMinutes($holdMinutes),
+                'reserved_table_id' => $table->id,
+            ];
+
+            if ($entry->hold_confirmation_code === null || $entry->hold_confirmation_code === '') {
+                $attrs['hold_confirmation_code'] = strtoupper(Str::random(6));
+            }
+
+            $entry->update($attrs);
+            $reservedTableId = (int) $table->id;
+        });
+
+        $entry = QueueEntry::query()->findOrFail($entryId);
+        $table = $reservedTableId !== null ? Table::query()->find($reservedTableId) : null;
+
+        dispatch(new SendSmsJob($entry->customer_phone, 'table_ready', [
+            'name' => $entry->customer_name,
+            'venue' => $venueName.($table ? ' - Table '.$table->label : ''),
+            'is_priority' => $entry->isPriority(),
+            'minutes' => (string) $holdMinutes,
+            'code' => $entry->hold_confirmation_code ?? '',
+        ]));
+
+        Cache::forget('tables.venue.1');
+
+        return $entry;
+    }
+
     public function estimateWait(int $partySize): int
     {
         $duration = max(1, (int) config('operations.occupancy_duration_minutes', 90));

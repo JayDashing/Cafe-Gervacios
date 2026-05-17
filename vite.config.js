@@ -7,6 +7,7 @@ export default defineConfig({
             input: [
                 'resources/css/app.css',
                 'resources/js/app.js',
+                'resources/js/blueprint-floor-map.js',
                 'resources/js/seating-layout.js',
                 'resources/js/dashboard-seat-map-waitlist.js',
             ],

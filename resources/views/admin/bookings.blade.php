@@ -41,7 +41,13 @@
                 <tbody class="divide-y divide-amber-100/90">
                     @forelse ($awaitingVerification as $booking)
                         <tr class="transition-colors odd:bg-white even:bg-amber-50/30 hover:bg-amber-50/60">
-                            <td class="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{{ $booking->customer_name }}</td>
+                            <td class="whitespace-nowrap px-4 py-3">
+                                <div class="font-medium text-slate-800">{{ $booking->customer_name }}</div>
+                                <div class="mt-1 flex flex-wrap gap-1.5">
+                                    <x-status-badge :status="$booking->priority_type" size="xs" />
+                                    <x-status-badge :status="$booking->payment_status" size="xs" />
+                                </div>
+                            </td>
                             <td class="whitespace-nowrap px-4 py-3 text-slate-700">{{ $booking->booked_at?->format('M d, Y g:i A') ?? '—' }}</td>
                             <td class="whitespace-nowrap px-4 py-3 text-slate-800">{{ $booking->party_size }}</td>
                             <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-700">{{ $booking->transaction_number ?? '—' }}</td>
@@ -116,6 +122,9 @@
                             <td class="whitespace-nowrap px-4 py-3">
                                 <div class="font-medium text-slate-800">{{ $booking->customer_name }}</div>
                                 <div class="text-xs text-slate-500">{{ $booking->customer_phone }}</div>
+                                <div class="mt-1 flex flex-wrap gap-1.5">
+                                    <x-status-badge :status="$booking->priority_type" size="xs" />
+                                </div>
                             </td>
                             <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ $booking->customer_email ?? '—' }}</td>
                             <td class="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{{ $booking->party_size }}</td>
@@ -130,21 +139,14 @@
                             </td>
                             <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-600">{{ $booking->transaction_number ?? '—' }}</td>
                             <td class="whitespace-nowrap px-4 py-3">
-                                <span class="inline-flex items-center rounded-xl border px-2.5 py-1 text-xs font-semibold
-                                    {{ $booking->status === 'active' ? 'border-green-100 bg-green-50 text-green-800' : '' }}
-                                    {{ $booking->status === 'pending' ? 'border-yellow-100 bg-yellow-50 text-yellow-900' : '' }}
-                                    {{ $booking->status === 'completed' ? 'border-slate-200 bg-slate-50 text-slate-800' : '' }}
-                                    {{ $booking->status === 'cancelled' ? 'border-red-100 bg-red-50 text-red-700' : '' }}">
-                                    {{ ucfirst($booking->status) }}
-                                </span>
+                                <x-status-badge :status="$booking->status" size="md" />
                             </td>
                             <td class="whitespace-nowrap px-4 py-3">
                                 <div class="flex flex-wrap items-center gap-2">
                                     @if ($booking->payment_status === 'paid')
-                                        <span class="inline-flex items-center gap-1 rounded-xl border border-green-100 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800">
-                                            <i class="fa-solid fa-check text-[10px]"></i> Paid
-                                        </span>
+                                        <x-status-badge status="paid" size="md" />
                                     @elseif ($booking->payment_method === 'manual_qr' && $booking->payment_status === 'pending_verification')
+                                        <x-status-badge status="pending_verification" size="md" />
                                         <form method="POST" action="{{ route('admin.bookings.verify-payment', $booking) }}" class="m-0 inline">
                                             @csrf
                                             <button type="submit" class="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-950 hover:bg-amber-100">Verify</button>
@@ -160,14 +162,10 @@
                                                 Unpaid
                                             </span>
                                         @else
-                                            <span class="rounded-xl border border-yellow-100 bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-900">
-                                                Pending
-                                            </span>
+                                            <x-status-badge status="pending" size="md" />
                                         @endif
                                     @elseif ($booking->payment_status === 'failed')
-                                        <span class="rounded-xl border border-red-100 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-                                            Failed
-                                        </span>
+                                        <x-status-badge status="failed" size="md" />
                                     @else
                                         <span class="text-xs text-slate-500" title="{{ $booking->payment_status ?? '' }}">
                                             {{ $booking->payment_status ? ucfirst(str_replace('_', ' ', $booking->payment_status)) : '—' }}

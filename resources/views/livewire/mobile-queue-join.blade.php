@@ -21,7 +21,7 @@
             <div>
                 <label class="block text-xs uppercase tracking-wider text-cream/60 mb-2">Priority</label>
                 <select wire:model="priority_type" class="w-full min-h-12 rounded-xl bg-muted-bg border border-border-subtle px-4 text-cream">
-                    <option value="none">Standard</option>
+                    <option value="none">Regular</option>
                     <option value="pwd">PWD</option>
                     <option value="pregnant">Pregnant</option>
                     <option value="senior">Senior citizen</option>

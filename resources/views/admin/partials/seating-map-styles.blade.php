@@ -191,11 +191,43 @@ Visual overrides for seating-map-inner — loads after inline styles.
         box-shadow: 0 8px 32px rgba(26, 34, 50, 0.14);
     }
 
+    #seat-modal {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+
+    #seat-modal.open {
+        display: flex;
+        pointer-events: auto;
+    }
+
     #seat-modal .seat-modal__panel {
         background: #fff;
+        pointer-events: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(15, 23, 42, 0.3) transparent;
+    }
+
+    #seat-modal.seat-modal--editorial .seating-s-opts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        padding: 0;
+        margin-bottom: 4px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
     }
 
     .seating-s-opt {
+        display: flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
         border-radius: 8px;
         border: 1.5px solid #e2e8f0;
         font-size: 12px;
@@ -203,6 +235,14 @@ Visual overrides for seating-map-inner — loads after inline styles.
         color: #64748b;
         background: #fff;
         transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+
+    .seating-s-dot {
+        display: inline-flex;
+        height: 9px;
+        width: 9px;
+        border-radius: 999px;
+        background: currentColor;
     }
 
     .seating-s-opt.av {

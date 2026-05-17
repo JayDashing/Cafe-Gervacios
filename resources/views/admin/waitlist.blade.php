@@ -1,9 +1,11 @@
 @extends('layouts.admin')
 
-@section('page_title', 'Waitlist')
+@section('page_title', 'Waitlist Management')
 
 @section('panel_heading')
-    <x-admin-panel-heading title="Waitlist" />
+    <x-admin-panel-heading
+        title="Waitlist Management"
+        subtitle="Manage waiting, notified, seated, and cancelled walk-in guests." />
 @endsection
 
 @section('content')

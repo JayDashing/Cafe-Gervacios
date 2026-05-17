@@ -122,6 +122,7 @@ class TableQuickActions extends Component
         Cache::forget('tables.venue.1');
         $this->tablesSyncVersion++;
         $this->dispatch('tables-refresh');
+        $this->dispatch('notify', type: 'success', message: $this->statusMessage($status));
     }
 
     public function release(int $tableId): void
@@ -133,6 +134,7 @@ class TableQuickActions extends Component
         Cache::forget('tables.venue.1');
         $this->tablesSyncVersion++;
         $this->dispatch('tables-refresh');
+        $this->dispatch('notify', type: 'success', message: 'Table moved to cleaning.');
     }
 
     public function markReadyAfterCleaning(int $tableId): void
@@ -148,6 +150,7 @@ class TableQuickActions extends Component
         Cache::forget('tables.venue.1');
         $this->tablesSyncVersion++;
         $this->dispatch('tables-refresh');
+        $this->dispatch('notify', type: 'success', message: 'Table marked free.');
     }
 
     public function updateFurnitureType(int $tableId, string $furnitureType): void
@@ -217,5 +220,16 @@ class TableQuickActions extends Component
             'arrivalDisplay' => $arrivalDisplay,
             'seatedDisplay' => $seatedDisplay,
         ]);
+    }
+
+    private function statusMessage(string $status): string
+    {
+        return match ($status) {
+            'available' => 'Table marked free.',
+            'reserved' => 'Table reserved.',
+            'occupied' => 'Table marked occupied.',
+            'cleaning' => 'Table moved to cleaning.',
+            default => 'Table updated.',
+        };
     }
 }

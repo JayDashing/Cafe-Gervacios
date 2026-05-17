@@ -50,9 +50,10 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 8px 12px;
-            border-radius: 10px;
-            font-size: 13px;
+            min-height: 44px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 14px;
             font-weight: 500;
             color: #e2e8f0;
             border-left: 2px solid transparent;
@@ -74,7 +75,8 @@
 
         .admin-sidebar[data-collapsed="true"] .tc-nav-link {
             justify-content: center;
-            padding: 12px;
+            min-height: 46px;
+            padding: 13px 12px;
             gap: 0;
         }
 
@@ -158,8 +160,9 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 8px 12px;
-            font-size: 13px;
+            min-height: 44px;
+            padding: 10px 12px;
+            font-size: 14px;
             font-weight: 500;
             color: #e2e8f0;
             text-decoration: none;
@@ -181,7 +184,8 @@
 
         .admin-sidebar[data-collapsed="true"] .settings-row a.settings-main-link {
             justify-content: center;
-            padding: 12px;
+            min-height: 46px;
+            padding: 13px 12px;
             gap: 0;
         }
 
@@ -256,9 +260,10 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 8px 12px;
-            border-radius: 10px;
-            font-size: 13px;
+            min-height: 44px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 14px;
             font-weight: 500;
             color: #cbd5e1;
             background: transparent;
@@ -283,7 +288,8 @@
 
         .admin-sidebar[data-collapsed="true"] .admin-sidebar-logout-btn {
             justify-content: center;
-            padding: 12px;
+            min-height: 46px;
+            padding: 13px 12px;
             gap: 0;
         }
 
@@ -307,7 +313,7 @@
     </style>
 
     {{-- Navigation (brand + menu toggle live in layouts.partials.admin-header) --}}
-    <nav id="admin-sidebar-nav" class="flex-1 space-y-0.5 overflow-y-auto px-2.5 pb-3 pt-3" aria-label="Main">
+    <nav id="admin-sidebar-nav" class="flex-1 space-y-1.5 overflow-y-auto px-2.5 pb-3 pt-3" aria-label="Main">
 
         <p class="admin-sidebar-section-label text-[11px]">Main Menu</p>
 
@@ -319,78 +325,53 @@
             };
         @endphp
 
-        @if (auth()->user()->isAdmin())
+        @php $isAdminUser = auth()->user()->isAdmin(); @endphp
+
+        @if ($isAdminUser)
             @php [$c] = $item('admin.dashboard'); @endphp
-            <a href="{{ route('admin.dashboard') }}" class="{{ $c }}" title="Dashboard">
+            <a href="{{ route('admin.dashboard') }}" class="{{ $c }}" title="Dashboard" aria-current="{{ request()->routeIs('admin.dashboard') ? 'page' : 'false' }}">
                 <i class="fa-solid fa-house tc-nav-icon"></i>
                 <span class="admin-sidebar-nav-text">Dashboard</span>
-            </a>
-
-            @php [$c] = $item('admin.seating-analytics'); @endphp
-            <a href="{{ route('admin.seating-analytics') }}" class="{{ $c }}" title="Analytics">
-                <i class="fa-solid fa-chart-line tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">Analytics</span>
-            </a>
-        @endif
-
-        @php [$c] = $item(['admin.tables', 'admin.bookings']); @endphp
-        <a href="{{ route('admin.tables') }}" class="{{ $c }}" title="Floor Map">
-            <i class="fa-solid fa-table-cells tc-nav-icon"></i>
-            <span class="admin-sidebar-nav-text">Floor Map</span>
-        </a>
-
-        @php [$c] = $item('admin.bookings'); @endphp
-        <a href="{{ route('admin.bookings') }}" class="{{ $c }}" title="Bookings">
-            <i class="fa-solid fa-calendar-days tc-nav-icon"></i>
-            <span class="admin-sidebar-nav-text">Bookings</span>
-        </a>
-
-        @if (auth()->user()->role !== 'staff')
-            @php [$c] = $item('staff.*'); @endphp
-            <a href="{{ route('staff.queue') }}" class="{{ $c }}" title="Priority">
-                <i class="fa-solid fa-clipboard-list tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">Priority</span>
             </a>
         @endif
 
         @php [$c] = $item('admin.waitlist'); @endphp
-        <a href="{{ route('admin.waitlist') }}" class="{{ $c }}" title="Waitlist">
+        <a href="{{ route('admin.waitlist') }}" class="{{ $c }}" title="Waitlist Management" aria-current="{{ request()->routeIs('admin.waitlist') ? 'page' : 'false' }}">
             <i class="fa-solid fa-users-line tc-nav-icon"></i>
-            <span class="admin-sidebar-nav-text">Waitlist</span>
+            <span class="admin-sidebar-nav-text">Waitlist Management</span>
         </a>
 
-        @if (auth()->user()->role !== 'staff')
-            @php [$c] = $item('admin.focus'); @endphp
-            <a href="{{ route('admin.focus') }}" class="{{ $c }}" title="Focus Mode">
-                <i class="fa-solid fa-expand tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">Focus Mode</span>
+        @php [$c] = $item(['admin.tables', 'admin.seating-layout', 'admin.bookings']); @endphp
+        <a href="{{ route('admin.tables') }}" class="{{ $c }}" title="Floor Map Management" aria-current="{{ request()->routeIs('admin.tables', 'admin.seating-layout', 'admin.bookings') ? 'page' : 'false' }}">
+            <i class="fa-solid fa-table-cells tc-nav-icon"></i>
+            <span class="admin-sidebar-nav-text">Floor Map Management</span>
+        </a>
+
+        @php [$c] = $item('staff.queue'); @endphp
+        <a href="{{ route('staff.queue') }}" class="{{ $c }}" title="Priority Queue" aria-current="{{ request()->routeIs('staff.queue') ? 'page' : 'false' }}">
+            <i class="fa-solid fa-clipboard-list tc-nav-icon"></i>
+            <span class="admin-sidebar-nav-text">Priority Queue</span>
+        </a>
+
+        @if ($isAdminUser)
+            @php [$c] = $item('admin.seating-analytics'); @endphp
+            <a href="{{ route('admin.seating-analytics') }}" class="{{ $c }}" title="Reports & Analytics" aria-current="{{ request()->routeIs('admin.seating-analytics') ? 'page' : 'false' }}">
+                <i class="fa-solid fa-chart-line tc-nav-icon"></i>
+                <span class="admin-sidebar-nav-text">Reports & Analytics</span>
+            </a>
+
+            @php [$c] = $item('admin.system-logs'); @endphp
+            <a href="{{ route('admin.system-logs') }}" class="{{ $c }}" title="System Logs" aria-current="{{ request()->routeIs('admin.system-logs') ? 'page' : 'false' }}">
+                <i class="fa-solid fa-clipboard-list tc-nav-icon"></i>
+                <span class="admin-sidebar-nav-text">System Logs</span>
             </a>
         @endif
 
-        @if (auth()->user()->isAdmin())
+        <p class="admin-sidebar-section-label text-[11px]">System</p>
 
-            @php [$c] = $item('admin.logs'); @endphp
-            <a href="{{ route('admin.logs') }}" class="{{ $c }}" title="Logs">
-                <i class="fa-solid fa-file-lines tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">Logs</span>
-            </a>
-
-            @php [$c] = $item('admin.menu'); @endphp
-            <a href="{{ route('admin.menu') }}" class="{{ $c }}" title="Menu">
-                <i class="fa-solid fa-utensils tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">Menu</span>
-            </a>
-
-            @php [$c] = $item('admin.staff.*'); @endphp
-            <a href="{{ route('admin.staff.index') }}" class="{{ $c }}" title="Staff">
-                <i class="fa-solid fa-users tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">Staff</span>
-            </a>
-
-            <p class="admin-sidebar-section-label text-[11px]">System</p>
-
+        @if ($isAdminUser)
             @php
-                $settingsActive = request()->routeIs('admin.settings');
+                $settingsActive = request()->routeIs('admin.settings', 'admin.2fa.*', 'admin.password.change');
                 $settingsBase = route('admin.settings');
                 $settingsModalUrl = fn(string $modal) => route('admin.settings', ['modal' => $modal]);
             @endphp
@@ -398,7 +379,7 @@
             <div class="settings-row {{ $settingsActive ? 'tc-nav-active' : '' }}"
                 style="border-left: 2px solid {{ $settingsActive ? 'rgba(248,250,252,0.55)' : 'transparent' }}; border-radius: 10px;">
                 <div class="settings-row-inner">
-                    <a href="{{ $settingsBase }}" class="settings-main-link" title="Settings">
+                    <a href="{{ $settingsBase }}" class="settings-main-link" title="Settings" aria-current="{{ $settingsActive ? 'page' : 'false' }}">
                         <i class="fa-solid fa-gear tc-nav-icon"></i>
                         <span class="admin-sidebar-nav-text truncate">Settings</span>
                     </a>
@@ -461,20 +442,18 @@
                     window.addEventListener('popstate', syncJumpActive);
                 })();
             </script>
+        @else
+            @php [$c] = $item('staff.profile'); @endphp
+            <a href="{{ route('staff.profile') }}" class="{{ $c }}" title="Settings" aria-current="{{ request()->routeIs('staff.profile') ? 'page' : 'false' }}">
+                <i class="fa-solid fa-gear tc-nav-icon"></i>
+                <span class="admin-sidebar-nav-text">Settings</span>
+            </a>
         @endif
     </nav>
 
     {{-- Footer --}}
     <div class="admin-sidebar-footer mt-auto shrink-0 px-3 py-2.5"
         style="border-top: 1px solid rgba(248, 250, 252, 0.1); background: #0f172a;">
-        @if (auth()->user()->role === 'staff')
-            @php [$c] = $item('staff.profile'); @endphp
-            <a href="{{ route('staff.profile') }}" class="{{ $c }}" title="Profile &amp; Settings">
-                <i class="fa-solid fa-user tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">Profile &amp; Settings</span>
-            </a>
-        @endif
-
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="admin-sidebar-logout-btn" title="Logout">

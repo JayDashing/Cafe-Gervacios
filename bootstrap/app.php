@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\BlockBlacklistedIp::class,
         ]);
 
+        $middleware->append(\App\Http\Middleware\NormalizeRequestPath::class);
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
         $middleware->validateCsrfTokens(except: [

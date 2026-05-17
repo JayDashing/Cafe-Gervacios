@@ -27,7 +27,7 @@ return new class extends Migration {
 
             // RA 9994 / RA 7277 — priority entries always before regular
             $table->index(['status', 'priority_score', 'joined_at'], 'idx_queue_sort');
-            $table->index('customer_phone', 'idx_phone');
+            $table->index('customer_phone', 'idx_queue_entries_phone');
         });
     }
 

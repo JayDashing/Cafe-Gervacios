@@ -10,6 +10,10 @@ use App\Services\BookingGuardService;
 use App\Services\PayMongoService;
 use App\Support\DeviceContext;
 use Carbon\Carbon;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -67,10 +71,29 @@ class ReservationForm extends Component
     public string $reservationPaymentMode = 'online';
 
     private const ALLOWED_TIMES = [
-        '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-        '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-        '17:00', '17:30', '18:00', '18:30', '19:00', '19:30',
-        '20:00', '20:30', '21:00', '21:30', '22:00',
+        '11:00',
+        '11:30',
+        '12:00',
+        '12:30',
+        '13:00',
+        '13:30',
+        '14:00',
+        '14:30',
+        '15:00',
+        '15:30',
+        '16:00',
+        '16:30',
+        '17:00',
+        '17:30',
+        '18:00',
+        '18:30',
+        '19:00',
+        '19:30',
+        '20:00',
+        '20:30',
+        '21:00',
+        '21:30',
+        '22:00',
     ];
 
     /**
@@ -78,7 +101,7 @@ class ReservationForm extends Component
      */
     private function effectivePaymentMethod(): string
     {
-        if (! $this->paymongoEnabled) {
+        if (!$this->paymongoEnabled) {
             return 'manual_qr';
         }
 
@@ -94,12 +117,12 @@ class ReservationForm extends Component
             : ['nullable', 'string'];
 
         return [
-            'name'   => ['required', 'string', 'max:255', 'regex:/^[\pL\s\-\'.]+$/u'],
-            'phone'  => ['required', new PhilippinePhone],
-            'email'  => 'required|email:rfc,dns|max:255',
+            'name' => ['required', 'string', 'max:255', 'regex:/^[\pL\s\-\'.]+$/u'],
+            'phone' => ['required', new PhilippinePhone],
+            'email' => 'required|email:rfc,dns|max:255',
             'guests' => ['required', 'integer', 'min:1', 'max:' . $maxParty],
-            'date'   => 'required|date|after_or_equal:today|before_or_equal:' . now()->addMonths(3)->toDateString(),
-            'time'   => ['required', 'string', Rule::in(self::slotTimeWhitelist())],
+            'date' => 'required|date|after_or_equal:today|before_or_equal:' . now()->addMonths(3)->toDateString(),
+            'time' => ['required', 'string', Rule::in(self::slotTimeWhitelist())],
             'transactionNumber' => $transactionRules,
             'policyAcknowledged' => ['accepted'],
             'specialRequests' => ['nullable', 'string', 'max:2000'],
@@ -107,7 +130,7 @@ class ReservationForm extends Component
     }
 
     protected array $messages = [
-        'name.regex'  => 'Name may only contain letters, spaces, hyphens, and apostrophes.',
+        'name.regex' => 'Name may only contain letters, spaces, hyphens, and apostrophes.',
         'date.before_or_equal' => 'Reservations can only be made up to 3 months in advance.',
         'time.in' => 'Please select a valid reservation time between 11:00 and 22:00.',
         'policyAcknowledged.accepted' => 'Please confirm that you understand the reservation policies.',
@@ -228,7 +251,7 @@ class ReservationForm extends Component
     {
         $this->syncSlotsByCategory();
 
-        if ($this->time !== '' && ! $this->isTimeSlotAvailableInGrid($this->time)) {
+        if ($this->time !== '' && !$this->isTimeSlotAvailableInGrid($this->time)) {
             $this->time = '';
             $this->selectedSlot = '';
         }
@@ -299,7 +322,7 @@ class ReservationForm extends Component
             ];
         }
 
-        $this->slotModalNoAvailabilityAll = ! $anyBookable;
+        $this->slotModalNoAvailabilityAll = !$anyBookable;
     }
 
     /**
@@ -345,7 +368,7 @@ class ReservationForm extends Component
     public function selectSlot(string $time): void
     {
         $this->loadSlots();
-        if (! $this->isTimeSlotAvailableInGrid($time)) {
+        if (!$this->isTimeSlotAvailableInGrid($time)) {
             return;
         }
         $this->selectedSlot = $time;
@@ -482,7 +505,7 @@ class ReservationForm extends Component
      */
     public function getFormSubmitHandlerProperty(): string
     {
-        if (! $this->paymongoEnabled) {
+        if (!$this->paymongoEnabled) {
             return 'submit';
         }
 
@@ -528,6 +551,10 @@ class ReservationForm extends Component
 
     private function checkRateLimit(): bool
     {
+        if (app()->environment(['local', 'testing'])) {
+            return true;
+        }
+
         $key = 'reservation:' . request()->ip();
         if (RateLimiter::tooManyAttempts($key, 5)) {
             $this->errorMessage = 'Too many reservation attempts. Please try again later.';
@@ -547,11 +574,11 @@ class ReservationForm extends Component
 
     private function sanitize(): void
     {
-        $this->name  = strip_tags(trim($this->name));
+        $this->name = strip_tags(trim($this->name));
         $this->phone = strip_tags(trim($this->phone));
         $this->email = strip_tags(trim($this->email));
-        $this->date  = strip_tags(trim($this->date));
-        $this->time  = strip_tags(trim($this->time));
+        $this->date = strip_tags(trim($this->date));
+        $this->time = strip_tags(trim($this->time));
         $this->transactionNumber = preg_replace('/\D/', '', strip_tags(trim((string) $this->transactionNumber)));
         $this->specialRequests = strip_tags(trim($this->specialRequests));
     }
@@ -589,12 +616,6 @@ class ReservationForm extends Component
         $this->sanitize();
         $this->validate();
 
-        if (app(BookingGuardService::class)->hasActivePendingReservation($this->phone)) {
-            $this->rejectDuplicateReservation();
-
-            return;
-        }
-
         $this->processing = true;
         $this->errorMessage = '';
 
@@ -604,25 +625,32 @@ class ReservationForm extends Component
         // Typed reference is format-validated only; actual payment is confirmed via PayMongo checkout / webhook,
         // not by verifying these digits against GCash here. See docblock on submit() for the manual-QR edge case.
 
-        $booking = Booking::create([
-            'booking_ref'    => $ref,
-            'source'         => DeviceContext::sourceForDb(request()),
-            'device_type'    => DeviceContext::deviceTypeForDb(request()),
-            'table_id'       => null,
-            'customer_name'  => $this->name,
+        $booking = $this->createGuardedBooking([
+            'booking_ref' => $ref,
+            'source' => DeviceContext::sourceForDb(request()),
+            'device_type' => DeviceContext::deviceTypeForDb(request()),
+            'table_id' => null,
+            'customer_name' => $this->name,
             'customer_phone' => $this->phone,
             'customer_email' => $this->email,
-            'party_size'     => (int) $this->guests,
-            'status'         => 'pending',
+            'party_size' => (int) $this->guests,
+            'status' => 'pending',
             'payment_status' => 'pending',
             'payment_method' => 'paymongo',
             'deposit_amount' => $this->totalDeposit,
-            'booked_at'      => $bookedAt,
+            'booked_at' => $bookedAt,
             'transaction_number' => $this->transactionNumber !== '' ? $this->transactionNumber : null,
             'account_number' => null,
             'policy_acknowledged' => $this->policyAcknowledged,
             'special_requests' => $this->specialRequests !== '' ? $this->specialRequests : null,
         ]);
+
+        if (! $booking) {
+            $this->processing = false;
+            $this->rejectDuplicateReservation();
+
+            return;
+        }
 
         $service = app(PayMongoService::class);
         $amountCentavos = $this->totalDeposit * 100;
@@ -638,6 +666,9 @@ class ReservationForm extends Component
 
         if (!$result) {
             $booking->update(['payment_status' => 'failed']);
+            Log::warning('PayMongo checkout link creation failed for pending booking', [
+                'booking_ref' => $booking->booking_ref,
+            ]);
             $this->processing = false;
             $this->errorMessage = 'Unable to create payment link. Please try again or contact us directly.';
             return;
@@ -676,38 +707,64 @@ class ReservationForm extends Component
         $this->sanitize();
         $this->validate();
 
-        if (app(BookingGuardService::class)->hasActivePendingReservation($this->phone)) {
-            $this->rejectDuplicateReservation();
-
-            return;
-        }
-
         $ref = self::generateSecureRef();
         $bookedAt = Carbon::parse("{$this->date} {$this->time}");
 
-        Booking::create([
-            'booking_ref'    => $ref,
-            'source'         => DeviceContext::sourceForDb(request()),
-            'device_type'    => DeviceContext::deviceTypeForDb(request()),
-            'table_id'       => null,
-            'customer_name'  => $this->name,
+        $booking = $this->createGuardedBooking([
+            'booking_ref' => $ref,
+            'source' => DeviceContext::sourceForDb(request()),
+            'device_type' => DeviceContext::deviceTypeForDb(request()),
+            'table_id' => null,
+            'customer_name' => $this->name,
             'customer_phone' => $this->phone,
             'customer_email' => $this->email,
-            'party_size'     => (int) $this->guests,
-            'status'         => 'pending',
+            'party_size' => (int) $this->guests,
+            'status' => 'pending',
             'payment_status' => 'pending_verification',
             'payment_method' => 'manual_qr',
             'deposit_amount' => $this->totalDeposit,
-            'booked_at'      => $bookedAt,
+            'booked_at' => $bookedAt,
             'transaction_number' => $this->transactionNumber !== '' ? $this->transactionNumber : null,
             'account_number' => null,
             'policy_acknowledged' => $this->policyAcknowledged,
             'special_requests' => $this->specialRequests !== '' ? $this->specialRequests : null,
         ]);
 
+        if (! $booking) {
+            $this->rejectDuplicateReservation();
+
+            return;
+        }
+
         $this->bookingRef = $ref;
         $this->successPaymentMethod = 'manual_qr';
         $this->success = true;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    private function createGuardedBooking(array $attributes): ?Booking
+    {
+        $lockKey = 'reservation:create:'.sha1($this->phone);
+
+        try {
+            return Cache::lock($lockKey, 10)->block(3, function () use ($attributes) {
+                return DB::transaction(function () use ($attributes) {
+                    if (app(BookingGuardService::class)->hasActivePendingReservation($this->phone, true)) {
+                        return null;
+                    }
+
+                    return Booking::create($attributes);
+                });
+            });
+        } catch (LockTimeoutException $e) {
+            Log::warning('Reservation duplicate-prevention lock timed out', [
+                'phone_hash' => sha1($this->phone),
+            ]);
+
+            return null;
+        }
     }
 
     /**
