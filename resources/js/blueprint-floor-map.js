@@ -987,7 +987,8 @@ class BlueprintFloorMap {
         this.placementBar?.classList.toggle('flex', Boolean(this.pendingMarker));
         this.stage?.classList.toggle('is-placement-mode', Boolean(this.pendingMarker));
 
-        const canMergeSelection = count >= 2 && this.mergeSetIsConnected([...this.selectedIds]);
+        const editGrouping = this.editMode && this.apiGroup;
+        const canMergeSelection = count >= 2 && (editGrouping || this.mergeSetIsConnected([...this.selectedIds]));
 
         if (merge) {
             merge.disabled = !canMergeSelection;
@@ -995,14 +996,20 @@ class BlueprintFloorMap {
 
         if (summary) {
             if (!this.selectionMode) {
-                summary.textContent = 'Select two or more nearby tables to merge.';
+                summary.textContent = editGrouping
+                    ? 'Select two or more table markers to group.'
+                    : 'Select two or more nearby tables to merge.';
             } else if (count === 0) {
-                summary.textContent = 'Select a table. Nearby compatible tables will be highlighted.';
+                summary.textContent = editGrouping
+                    ? 'Select the table markers to group.'
+                    : 'Select a table. Nearby compatible tables will be highlighted.';
             } else if (count === 1) {
-                summary.textContent = 'Nearby compatible tables are highlighted. Distant tables are dimmed.';
+                summary.textContent = editGrouping
+                    ? 'Select at least one more marker.'
+                    : 'Nearby compatible tables are highlighted. Distant tables are dimmed.';
             } else {
                 summary.textContent = canMergeSelection
-                    ? `${count} nearby tables selected - ready to merge`
+                    ? `${count} tables selected - ready to merge`
                     : 'These tables are too far apart to merge.';
             }
         }
