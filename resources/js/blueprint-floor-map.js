@@ -21,6 +21,9 @@ const STATUS_CLASSES = {
 };
 
 const MERGE_DISTANCE_LIMIT = 18;
+const BOUNDARY_ERROR = 'Table marker must stay inside the blueprint area.';
+const DEFAULT_MARKER_WIDTH = 58;
+const DEFAULT_MARKER_HEIGHT = 42;
 
 function normalizeStatus(status) {
     return status === 'free' ? 'available' : (status || 'available');
@@ -79,6 +82,12 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function finiteNumber(value, fallback = 0) {
+    const number = Number(value);
+
+    return Number.isFinite(number) ? number : fallback;
+}
+
 function normalizeGroup(group) {
     const tableIds = Array.isArray(group.table_ids || group.tableIds)
         ? (group.table_ids || group.tableIds).map((id) => Number(id)).filter(Boolean)
@@ -134,14 +143,19 @@ class BlueprintFloorMap {
     }
 
     normalizeTable(table) {
+        const x = finiteNumber(table.x, 50);
+        const y = finiteNumber(table.y, 50);
+
         return {
             ...table,
             id: Number(table.id),
             seat_id: Number(table.seat_id || 0),
             capacity: Number(table.capacity || 1),
             status: normalizeStatus(table.status),
-            x: Number(table.x || 50),
-            y: Number(table.y || 50),
+            x,
+            y,
+            savedX: x,
+            savedY: y,
             furniture_type: table.furniture_type || 'standard',
             merge_group: String(table.merge_group || 'default'),
         };
@@ -160,8 +174,15 @@ class BlueprintFloorMap {
             if (!this.pendingMarker) return;
             if (event.target.closest('[data-blueprint-marker]')) return;
 
-            const point = this.pointFromEvent(event);
-            this.placeMarker(point.x, point.y);
+            const point = this.pointFromEvent(event, null, this.pendingMarker);
+            if (!point) {
+                notify('error', BOUNDARY_ERROR);
+                return;
+            }
+            if (point.clamped) {
+                notify('error', BOUNDARY_ERROR);
+            }
+            this.placeMarker(point);
         });
 
         this.addForm?.addEventListener('submit', (event) => {
@@ -266,12 +287,130 @@ class BlueprintFloorMap {
         return `T${max + 1}`;
     }
 
-    pointFromEvent(event) {
-        const rect = this.stage.getBoundingClientRect();
+    markerSize(marker = null, table = null) {
+        const liveRect = marker?.getBoundingClientRect?.();
+        if (liveRect?.width > 0 && liveRect?.height > 0) {
+            return {
+                width: liveRect.width,
+                height: liveRect.height,
+            };
+        }
+
+        if (!this.stage) {
+            return {
+                width: DEFAULT_MARKER_WIDTH,
+                height: DEFAULT_MARKER_HEIGHT,
+            };
+        }
+
+        const probe = document.createElement('button');
+        const status = normalizeStatus(table?.status);
+        probe.type = 'button';
+        probe.className = `bfm-marker bfm-marker--${status === 'available' ? 'free' : status}`;
+        probe.style.visibility = 'hidden';
+        probe.style.pointerEvents = 'none';
+        probe.style.left = '0';
+        probe.style.top = '0';
+        probe.innerHTML = `
+            <span class="bfm-marker__name">${escapeHtml(table?.label || table?.preview_label || this.nextTableLabel())}</span>
+            <span class="bfm-marker__meta">
+                <span class="bfm-marker__status">${statusLabel(status)}</span>
+                <span class="bfm-marker__capacity">${Number(table?.capacity || 1)}</span>
+            </span>
+        `;
+
+        this.stage.appendChild(probe);
+        const rect = probe.getBoundingClientRect();
+        probe.remove();
+
         return {
-            x: clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100),
-            y: clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100),
+            width: Math.max(DEFAULT_MARKER_WIDTH, rect.width || 0),
+            height: Math.max(DEFAULT_MARKER_HEIGHT, rect.height || 0),
         };
+    }
+
+    markerBoundary(marker = null, table = null) {
+        const rect = this.stage?.getBoundingClientRect?.();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+        const size = this.markerSize(marker, table);
+        const halfWidth = Math.min(size.width / 2, rect.width / 2);
+        const halfHeight = Math.min(size.height / 2, rect.height / 2);
+        const maxX = Math.max(halfWidth, rect.width - halfWidth);
+        const maxY = Math.max(halfHeight, rect.height - halfHeight);
+
+        return {
+            left: rect.left,
+            top: rect.top,
+            containerWidth: rect.width,
+            containerHeight: rect.height,
+            markerWidth: size.width,
+            markerHeight: size.height,
+            minX: halfWidth,
+            minY: halfHeight,
+            maxX,
+            maxY,
+        };
+    }
+
+    boundaryPayload(bounds) {
+        return {
+            container_width: Number(bounds.containerWidth.toFixed(2)),
+            container_height: Number(bounds.containerHeight.toFixed(2)),
+            marker_width: Number(bounds.markerWidth.toFixed(2)),
+            marker_height: Number(bounds.markerHeight.toFixed(2)),
+        };
+    }
+
+    pointFromPixels(pixelX, pixelY, bounds) {
+        const x = clamp(pixelX, bounds.minX, bounds.maxX);
+        const y = clamp(pixelY, bounds.minY, bounds.maxY);
+
+        return {
+            x: clamp((x / bounds.containerWidth) * 100, 0, 100),
+            y: clamp((y / bounds.containerHeight) * 100, 0, 100),
+            clamped: Math.abs(x - pixelX) > 0.5 || Math.abs(y - pixelY) > 0.5,
+            bounds: this.boundaryPayload(bounds),
+        };
+    }
+
+    pointFromEvent(event, marker = null, table = null) {
+        const bounds = this.markerBoundary(marker, table);
+        if (!bounds) return null;
+
+        return this.pointFromPixels(event.clientX - bounds.left, event.clientY - bounds.top, bounds);
+    }
+
+    pointFromTable(table, marker = null) {
+        const bounds = this.markerBoundary(marker, table);
+        if (!bounds) return null;
+
+        return this.pointFromPixels(
+            (finiteNumber(table.x, 50) / 100) * bounds.containerWidth,
+            (finiteNumber(table.y, 50) / 100) * bounds.containerHeight,
+            bounds,
+        );
+    }
+
+    coordinatePayload(point) {
+        return {
+            pos_x: point.x,
+            pos_y: point.y,
+            ...point.bounds,
+        };
+    }
+
+    restorePendingMoves() {
+        for (const tableId of this.pendingMoves.keys()) {
+            const table = this.table(tableId);
+            if (!table) continue;
+
+            table.x = finiteNumber(table.savedX, table.x);
+            table.y = finiteNumber(table.savedY, table.y);
+        }
+
+        this.pendingMoves.clear();
+        this.render();
     }
 
     startMarkerDrag(event, marker) {
@@ -288,6 +427,7 @@ class BlueprintFloorMap {
         const startX = event.clientX;
         const startY = event.clientY;
         let moved = false;
+        let clampedToBoundary = false;
 
         const move = (moveEvent) => {
             const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
@@ -297,12 +437,15 @@ class BlueprintFloorMap {
             }
             if (!moved) return;
 
-            const point = this.pointFromEvent(moveEvent);
+            const point = this.pointFromEvent(moveEvent, marker, table);
+            if (!point) return;
+
+            clampedToBoundary ||= point.clamped;
             table.x = point.x;
             table.y = point.y;
             marker.style.left = `${point.x}%`;
             marker.style.top = `${point.y}%`;
-            this.pendingMoves.set(table.id, { x: point.x, y: point.y });
+            this.pendingMoves.set(table.id, this.coordinatePayload(point));
             this.renderGroups();
         };
 
@@ -314,7 +457,10 @@ class BlueprintFloorMap {
             marker.removeEventListener('pointercancel', up);
             if (moved) {
                 this.suppressClickForTable = tableId;
-                notify('success', 'Marker moved. Click Save Layout to keep the new position.');
+                notify(
+                    clampedToBoundary ? 'error' : 'success',
+                    clampedToBoundary ? BOUNDARY_ERROR : 'Marker moved. Click Save Layout to keep the new position.',
+                );
             }
         };
 
@@ -392,6 +538,15 @@ class BlueprintFloorMap {
         this.tables.forEach((table) => {
             const marker = this.ensureMarker(table);
             const status = normalizeStatus(table.status);
+            const point = this.pointFromTable(table, marker);
+
+            if (point?.clamped) {
+                table.x = point.x;
+                table.y = point.y;
+                if (this.editMode && table.seat_id) {
+                    this.pendingMoves.set(table.id, this.coordinatePayload(point));
+                }
+            }
 
             marker.classList.remove(
                 'bfm-marker--free',
@@ -784,13 +939,12 @@ class BlueprintFloorMap {
         this.renderControls();
     }
 
-    async placeMarker(x, y) {
+    async placeMarker(point) {
         if (!this.pendingMarker || !this.apiPlace) return;
 
         try {
             const { data } = await axios.post(this.apiPlace, {
-                pos_x: x,
-                pos_y: y,
+                ...this.coordinatePayload(point),
                 capacity: this.pendingMarker.capacity,
                 furniture_type: this.pendingMarker.furniture_type,
                 status: 'free',
@@ -804,8 +958,8 @@ class BlueprintFloorMap {
                 label: data.seat.table_label,
                 capacity: this.pendingMarker.capacity,
                 status: 'available',
-                x,
-                y,
+                x: data.seat.pos_x ?? point.x,
+                y: data.seat.pos_y ?? point.y,
                 furniture_type: this.pendingMarker.furniture_type,
                 guest: { name: 'No current guest', party: String(this.pendingMarker.capacity), arrival_at: null },
                 booking: null,
@@ -829,22 +983,36 @@ class BlueprintFloorMap {
         }
 
         try {
-            for (const [tableId, point] of this.pendingMoves.entries()) {
+            for (const [tableId] of this.pendingMoves.entries()) {
                 const table = this.table(tableId);
                 if (!table?.seat_id) continue;
+                const marker = this.root.querySelector(`[data-blueprint-marker][data-table-id="${table.id}"]`);
+                const boundedPoint = this.pointFromTable(table, marker);
+                if (!boundedPoint) {
+                    this.restorePendingMoves();
+                    notify('error', BOUNDARY_ERROR);
+                    return;
+                }
+                if (boundedPoint.clamped) {
+                    table.x = boundedPoint.x;
+                    table.y = boundedPoint.y;
+                }
 
                 await axios.post(this.apiUpdate, {
                     seat_id: table.seat_id,
-                    pos_x: point.x,
-                    pos_y: point.y,
+                    ...this.coordinatePayload(boundedPoint),
                 }, {
                     headers: { Accept: 'application/json' },
                 });
+
+                table.savedX = table.x;
+                table.savedY = table.y;
             }
 
             this.pendingMoves.clear();
             notify('success', 'Layout saved.');
         } catch (error) {
+            this.restorePendingMoves();
             notify('error', firstError(error, 'Could not save layout'));
         }
     }

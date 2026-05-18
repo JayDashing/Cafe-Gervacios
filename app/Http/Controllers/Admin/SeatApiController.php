@@ -16,6 +16,7 @@ use Illuminate\Validation\ValidationException;
 class SeatApiController extends Controller
 {
     private const MERGE_DISTANCE_LIMIT = 18.0;
+    private const FLOOR_MAP_BOUNDARY_MESSAGE = 'Table marker must stay inside the blueprint area.';
 
     public function index(): JsonResponse
     {
@@ -264,11 +265,16 @@ class SeatApiController extends Controller
         $validated = $request->validate([
             'pos_x' => ['required', 'numeric', 'min:0', 'max:100'],
             'pos_y' => ['required', 'numeric', 'min:0', 'max:100'],
+            'container_width' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
+            'container_height' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
+            'marker_width' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
+            'marker_height' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
             'label' => ['nullable', 'string', 'max:50'],
             'capacity' => ['nullable', 'integer', 'min:1', 'max:99'],
             'furniture_type' => ['nullable', 'string', 'max:32'],
             'status' => ['nullable', 'string', 'in:free,reserved,occupied'],
         ]);
+        $this->assertMarkerInsideBlueprint($validated);
 
         $result = DB::transaction(function () use ($validated) {
             $label = isset($validated['label']) && trim((string) $validated['label']) !== ''
@@ -329,6 +335,10 @@ class SeatApiController extends Controller
             'furniture_type' => ['nullable', 'string', 'max:32'],
             'pos_x' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'pos_y' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'container_width' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
+            'container_height' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
+            'marker_width' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
+            'marker_height' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
         ]);
 
         $hasStatus = isset($validated['status']) && $validated['status'] !== null && $validated['status'] !== '';
@@ -341,6 +351,9 @@ class SeatApiController extends Controller
             throw ValidationException::withMessages([
                 'seat_id' => ['Choose a status and/or table details to save.'],
             ]);
+        }
+        if ($hasPosition) {
+            $this->assertMarkerInsideBlueprint($validated);
         }
 
         $seat = Seat::query()->findOrFail($validated['seat_id']);
@@ -696,6 +709,62 @@ class SeatApiController extends Controller
                     'groups' => ['These tables are too far apart to merge.'],
                 ]);
             }
+        }
+    }
+
+    private function assertMarkerInsideBlueprint(array $data): void
+    {
+        $dimensionKeys = [
+            'container_width',
+            'container_height',
+            'marker_width',
+            'marker_height',
+        ];
+
+        $hasDimensions = collect($dimensionKeys)
+            ->contains(fn (string $key) => array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '');
+
+        if (! $hasDimensions) {
+            return;
+        }
+
+        foreach ($dimensionKeys as $key) {
+            if (! array_key_exists($key, $data) || $data[$key] === null || $data[$key] === '') {
+                throw ValidationException::withMessages([
+                    'pos_x' => [self::FLOOR_MAP_BOUNDARY_MESSAGE],
+                    'pos_y' => [self::FLOOR_MAP_BOUNDARY_MESSAGE],
+                ]);
+            }
+        }
+
+        $containerWidth = (float) $data['container_width'];
+        $containerHeight = (float) $data['container_height'];
+        $markerWidth = (float) $data['marker_width'];
+        $markerHeight = (float) $data['marker_height'];
+
+        if ($containerWidth <= 0 || $containerHeight <= 0 || $markerWidth <= 0 || $markerHeight <= 0) {
+            throw ValidationException::withMessages([
+                'pos_x' => [self::FLOOR_MAP_BOUNDARY_MESSAGE],
+                'pos_y' => [self::FLOOR_MAP_BOUNDARY_MESSAGE],
+            ]);
+        }
+
+        $centerX = ((float) $data['pos_x'] / 100) * $containerWidth;
+        $centerY = ((float) $data['pos_y'] / 100) * $containerHeight;
+        $halfWidth = $markerWidth / 2;
+        $halfHeight = $markerHeight / 2;
+        $tolerance = 0.5;
+
+        if (
+            $centerX - $halfWidth < -$tolerance
+            || $centerY - $halfHeight < -$tolerance
+            || $centerX + $halfWidth > $containerWidth + $tolerance
+            || $centerY + $halfHeight > $containerHeight + $tolerance
+        ) {
+            throw ValidationException::withMessages([
+                'pos_x' => [self::FLOOR_MAP_BOUNDARY_MESSAGE],
+                'pos_y' => [self::FLOOR_MAP_BOUNDARY_MESSAGE],
+            ]);
         }
     }
 

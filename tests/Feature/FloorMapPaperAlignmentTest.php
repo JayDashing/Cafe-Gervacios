@@ -46,11 +46,42 @@ class FloorMapPaperAlignmentTest extends TestCase
 
         $this->actingAs($this->admin())
             ->postJson(route('admin.api.seats.place'), [
+                'pos_x' => 96,
+                'pos_y' => 40,
+                'label' => 'P2',
+                'container_width' => 1000,
+                'container_height' => 600,
+                'marker_width' => 80,
+                'marker_height' => 44,
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertDatabaseHas('tables', ['label' => 'P2']);
+        $this->assertDatabaseHas('seats', ['pos_x' => 96, 'pos_y' => 40]);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.seats.place'), [
                 'pos_x' => 120,
                 'pos_y' => 40,
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['pos_x']);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.seats.place'), [
+                'pos_x' => 99,
+                'pos_y' => 40,
+                'container_width' => 1000,
+                'container_height' => 600,
+                'marker_width' => 80,
+                'marker_height' => 44,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['pos_x', 'pos_y'])
+            ->assertJsonPath('errors.pos_x.0', 'Table marker must stay inside the blueprint area.');
+
+        $this->assertDatabaseMissing('seats', ['pos_x' => 99, 'pos_y' => 40]);
     }
 
     public function test_update_table_metadata_and_reject_capacity_below_seat_count(): void
@@ -69,6 +100,24 @@ class FloorMapPaperAlignmentTest extends TestCase
 
         $this->assertSame('New', $table->refresh()->label);
         $this->assertSame(4, $table->capacity);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.seats.update'), [
+                'seat_id' => $seat->id,
+                'pos_x' => 99,
+                'pos_y' => 40,
+                'container_width' => 1000,
+                'container_height' => 600,
+                'marker_width' => 80,
+                'marker_height' => 44,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['pos_x', 'pos_y'])
+            ->assertJsonPath('errors.pos_x.0', 'Table marker must stay inside the blueprint area.');
+
+        $seat->refresh();
+        $this->assertSame(10.0, $seat->pos_x);
+        $this->assertSame(10.0, $seat->pos_y);
 
         $this->actingAs($this->admin())
             ->postJson(route('admin.api.seats.update'), [
