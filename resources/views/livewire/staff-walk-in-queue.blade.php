@@ -92,12 +92,14 @@
                         </h4>
                         <div class="space-y-2">
                             @foreach ($priorityQueue as $entry)
+                                @php($waitLabel = $entry->waitEstimateLabel())
                                 <div class="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
                                     <div class="flex flex-wrap items-center gap-2">
                                         <span class="rounded-full bg-panel-primary px-1.5 py-0.5 font-mono text-xs font-bold text-white">#{{ $entry->queue_display_number }}</span>
                                         <x-status-badge status="priority" size="xs" />
                                         <span class="text-sm font-semibold text-slate-900">{{ $entry->customer_name }}</span>
                                         <span class="text-xs font-medium text-slate-600">{{ $entry->party_size }}p</span>
+                                        <span class="text-xs font-semibold text-slate-600">ETA: {{ $waitLabel }}</span>
                                     </div>
                                     <x-priority-summary :entry="$entry" class="mt-2" />
                                 </div>
@@ -111,11 +113,13 @@
                         <h4 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">Regular guests</h4>
                         <div class="space-y-2">
                             @foreach ($regularQueue as $entry)
+                                @php($waitLabel = $entry->waitEstimateLabel())
                                 <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                                     <div class="flex flex-wrap items-center gap-2">
                                         <span class="rounded-full bg-white px-1.5 py-0.5 font-mono text-xs font-bold text-slate-800 ring-1 ring-slate-200">#{{ $entry->queue_display_number }}</span>
                                         <span class="text-sm font-semibold text-slate-900">{{ $entry->customer_name }}</span>
                                         <span class="text-xs font-medium text-slate-600">{{ $entry->party_size }}p</span>
+                                        <span class="text-xs font-semibold text-slate-600">ETA: {{ $waitLabel }}</span>
                                     </div>
                                     <x-priority-summary :entry="$entry" class="mt-2" />
                                 </div>

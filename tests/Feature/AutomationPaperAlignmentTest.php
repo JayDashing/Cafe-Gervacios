@@ -57,9 +57,17 @@ class AutomationPaperAlignmentTest extends TestCase
             'occupied_at' => now()->subMinutes(5),
             'occupied_party' => 2,
         ]);
+        $this->queueEntry([
+            'customer_name' => 'Ahead Guest',
+            'customer_phone' => '09170000001',
+            'joined_at' => now()->subMinute(),
+        ]);
         $entry = $this->queueEntry([
+            'customer_name' => 'Delayed Guest',
+            'customer_phone' => '09170000002',
             'estimated_wait' => 5,
             'last_estimated_wait' => 5,
+            'joined_at' => now(),
         ]);
 
         AutomationEngine::run('wait_estimates');

@@ -51,6 +51,7 @@ class TableService
         ]));
 
         Cache::forget('tables.venue.1');
+        app(QueueService::class)->refreshEstimatedWaits();
 
         return $booking;
     }
@@ -63,6 +64,7 @@ class TableService
         Seat::where('table_id', $table->id)->update(['status' => $this->mapTableStatusToSeatStatus('cleaning')]);
 
         Cache::forget('tables.venue.1');
+        app(QueueService::class)->refreshEstimatedWaits();
 
         $this->dispatchNotifyNextAfterTableReleaseDelayed();
     }
@@ -90,6 +92,8 @@ class TableService
 
         if ($status === 'available') {
             app(QueueService::class)->notifyNextAfterTableRelease();
+        } else {
+            app(QueueService::class)->refreshEstimatedWaits();
         }
     }
 
@@ -108,6 +112,7 @@ class TableService
 
         if ($expired->count() > 0) {
             Cache::forget('tables.venue.1');
+            app(QueueService::class)->refreshEstimatedWaits();
             $this->dispatchNotifyNextAfterTableReleaseDelayed();
         }
 

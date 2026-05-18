@@ -16,11 +16,13 @@
     };
     $createdAt = $entry->joined_at ?? $entry->created_at;
     $holdIso = $entry->hold_expires_at?->toIso8601String();
+    $waitLabel = $entry->waitEstimateLabel();
 @endphp
 
 <article
     wire:key="waitlist-entry-card-{{ $entry->id }}-{{ $entry->status }}"
-    x-data="{ menuOpen: false, detailsOpen: false }"
+    x-data="{ detailsOpen: false }"
+    x-on:keydown.escape.window="detailsOpen = false"
     class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-slate-300">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex min-w-0 flex-1 items-center gap-3">
@@ -32,6 +34,7 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <h3 class="truncate text-sm font-semibold text-slate-950">{{ $entry->customer_name }}</h3>
                     <span class="text-xs font-semibold text-slate-500">{{ (int) $entry->party_size }} guests</span>
+                    <span class="text-xs font-semibold text-slate-500">ETA: {{ $waitLabel }}</span>
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-1.5">
                     <x-status-badge :status="$priorityStatus" :label="$priorityLabel" size="xs" />
@@ -68,64 +71,14 @@
 
             <div class="relative">
                 <button type="button"
-                    x-on:click="menuOpen = !menuOpen"
+                    x-on:click.stop="detailsOpen = true"
                     class="tc-admin-btn-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 text-xs"
-                    aria-haspopup="menu"
-                    x-bind:aria-expanded="menuOpen.toString()">
+                    aria-haspopup="dialog"
+                    aria-controls="waitlist-entry-details-{{ $entry->id }}"
+                    x-bind:aria-expanded="detailsOpen.toString()">
                     More
-                    <i class="fa-solid fa-chevron-down text-[10px]" aria-hidden="true"></i>
+                    <i class="fa-solid fa-circle-info text-[10px]" aria-hidden="true"></i>
                 </button>
-
-                <div
-                    x-cloak
-                    x-show="menuOpen"
-                    x-transition
-                    x-on:click.outside="menuOpen = false"
-                    class="absolute right-0 z-40 mt-2 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl"
-                    role="menu">
-                    @if ($mode === 'waiting')
-                        <button type="button"
-                            wire:click="openSeatQuickPick({{ $entry->id }})"
-                            x-on:click="menuOpen = false"
-                            class="block w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                            Seat Guest
-                        </button>
-                    @elseif ($mode === 'notified')
-                        @if ($entry->hold_expires_at)
-                            <button type="button"
-                                wire:click="extendHold({{ $entry->id }})"
-                                x-on:click="menuOpen = false"
-                                class="block w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                                Extend Hold
-                            </button>
-                        @endif
-                    @endif
-
-                    @if (in_array($mode, ['waiting', 'notified'], true))
-                        @if ($isAdmin)
-                            <button type="button"
-                                wire:click="cancelEntry({{ $entry->id }})"
-                                wire:confirm="{{ $mode === 'notified' ? 'Remove this guest from the queue and release the held table?' : 'Remove this guest from the queue?' }}"
-                                x-on:click="menuOpen = false"
-                                class="block w-full px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50">
-                                Cancel Entry
-                            </button>
-                        @else
-                            <button type="button"
-                                disabled
-                                title="Admin only: remove/cancel waitlist entries"
-                                class="block w-full cursor-not-allowed px-3 py-2 text-left text-xs font-semibold text-slate-400">
-                                Cancel Entry
-                            </button>
-                        @endif
-                    @endif
-
-                    <button type="button"
-                        x-on:click="detailsOpen = true; menuOpen = false"
-                        class="block w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                        View Details
-                    </button>
-                </div>
             </div>
         </div>
     </div>
@@ -133,19 +86,13 @@
     <div
         x-cloak
         x-show="detailsOpen"
-        x-transition.opacity
+        id="waitlist-entry-details-{{ $entry->id }}"
         class="fixed inset-0 z-[130] flex justify-end bg-slate-950/45"
         role="dialog"
         aria-modal="true"
         x-on:keydown.escape.window="detailsOpen = false">
         <button type="button" class="absolute inset-0 cursor-default" x-on:click="detailsOpen = false" aria-label="Close details"></button>
         <section
-            x-transition:enter="transition transform ease-out duration-200"
-            x-transition:enter-start="translate-x-full"
-            x-transition:enter-end="translate-x-0"
-            x-transition:leave="transition transform ease-in duration-150"
-            x-transition:leave-start="translate-x-0"
-            x-transition:leave-end="translate-x-full"
             class="relative z-10 flex h-full w-full max-w-md flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
             x-on:click.stop>
             <header class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4">
@@ -182,7 +129,7 @@
                     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
                         <dt class="text-[11px] font-bold uppercase tracking-wide text-slate-500">ETA</dt>
                         <dd class="mt-1 font-semibold text-slate-900">
-                            {{ $entry->estimated_wait !== null ? $entry->estimated_wait.' min' : 'Not calculated' }}
+                            {{ $waitLabel }}
                         </dd>
                     </div>
                     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -230,6 +177,28 @@
                                 'selectedTableId' => $selectedTableId,
                                 'showHoldActions' => $mode === 'notified',
                             ])
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 bg-white p-3">
+                        <h3 class="text-sm font-semibold text-slate-950">Queue actions</h3>
+                        <p class="mt-0.5 text-xs text-slate-500">Administrative queue controls remain available from this details panel.</p>
+                        <div class="mt-3">
+                            @if ($isAdmin)
+                                <button type="button"
+                                    wire:click="cancelEntry({{ $entry->id }})"
+                                    wire:confirm="{{ $mode === 'notified' ? 'Remove this guest from the queue and release the held table?' : 'Remove this guest from the queue?' }}"
+                                    class="inline-flex min-h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                                    Cancel Entry
+                                </button>
+                            @else
+                                <button type="button"
+                                    disabled
+                                    title="Admin only: remove/cancel waitlist entries"
+                                    class="inline-flex min-h-10 cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-400">
+                                    Cancel Entry
+                                </button>
+                            @endif
                         </div>
                     </div>
                 @endif

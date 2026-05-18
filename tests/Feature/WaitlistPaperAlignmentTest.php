@@ -6,8 +6,11 @@ use App\Jobs\SendSmsJob;
 use App\Livewire\Admin\WaitlistPanel;
 use App\Livewire\StaffWalkInQueue;
 use App\Models\QueueEntry;
+use App\Models\Setting;
 use App\Models\Table;
 use App\Models\User;
+use App\Services\QueueService;
+use App\Services\TableService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -158,6 +161,78 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->assertDispatched('notify', type: 'success', message: 'Hold extended by 5 minutes.');
 
         $this->assertTrue($entry->refresh()->hold_expires_at->equalTo($before->addMinutes(5)));
+    }
+
+    public function test_waitlist_card_more_button_opens_guest_details_and_eta(): void
+    {
+        $entry = $this->queueEntry([
+            'customer_name' => 'PWD Detail Guest',
+            'customer_phone' => '09171234569',
+            'priority_type' => 'pwd',
+            'priority_score' => 100,
+            'estimated_wait' => 18,
+            'last_estimated_wait' => 18,
+            'queue_display_number' => 7,
+        ]);
+
+        Livewire::actingAs($this->user('admin'))
+            ->test(WaitlistPanel::class)
+            ->assertSee('More')
+            ->assertSee('PWD Detail Guest')
+            ->assertSee('Queue #'.$entry->queue_display_number)
+            ->assertSee('ETA: 18 min')
+            ->assertSee('Phone')
+            ->assertSee('Queue actions')
+            ->assertSeeHtml('aria-haspopup="dialog"')
+            ->assertSeeHtml('x-on:click.stop="detailsOpen = true"');
+    }
+
+    public function test_eta_is_zero_only_when_guest_has_immediate_compatible_table(): void
+    {
+        $this->table(capacity: 4, status: 'available');
+
+        $entry = app(QueueService::class)->join('Immediate Guest', '', 2, 'none', 'staff', 'desktop');
+
+        $entry->refresh();
+        $this->assertSame(0, $entry->estimated_wait);
+        $this->assertSame(0, $entry->last_estimated_wait);
+    }
+
+    public function test_priority_queue_recalculates_eta_for_regular_guest(): void
+    {
+        $this->table(capacity: 4, status: 'occupied', attrs: [
+            'occupied_at' => now()->subMinutes(5),
+            'occupied_party' => 2,
+        ]);
+
+        $queue = app(QueueService::class);
+        $regular = $queue->join('Regular Guest', '', 2, 'none', 'staff', 'desktop');
+        $pwd = $queue->join('PWD Guest', '', 2, 'pwd', 'staff', 'desktop');
+
+        $pwd->refresh();
+        $regular->refresh();
+
+        $this->assertSame(10, $pwd->estimated_wait);
+        $this->assertSame(10, $pwd->last_estimated_wait);
+        $this->assertSame(20, $regular->estimated_wait);
+        $this->assertSame(20, $regular->last_estimated_wait);
+    }
+
+    public function test_table_status_change_refreshes_waitlist_eta(): void
+    {
+        Setting::set('automation_notify_queue_on_release', '0');
+        $table = $this->table(capacity: 4, status: 'occupied', attrs: [
+            'occupied_at' => now()->subMinutes(5),
+            'occupied_party' => 2,
+        ]);
+
+        $entry = app(QueueService::class)->join('Waiting Guest', '', 2, 'none', 'staff', 'desktop');
+        $this->assertSame(10, $entry->refresh()->estimated_wait);
+
+        app(TableService::class)->override($table->id, 'available');
+
+        $this->assertSame(0, $entry->refresh()->estimated_wait);
+        $this->assertSame(0, $entry->last_estimated_wait);
     }
 
     private function user(string $role): User

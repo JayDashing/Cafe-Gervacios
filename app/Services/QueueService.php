@@ -14,6 +14,8 @@ use Illuminate\Support\Str;
 
 class QueueService
 {
+    private const BASE_WAIT_PER_QUEUE_POSITION = 10;
+
     /**
      * Why the waitlist might not auto-advance when a table is Free (for staff UI).
      *
@@ -109,14 +111,17 @@ class QueueService
                 'priority_type' => $priorityType,
                 'priority_score' => $score,
                 'needs_accessible' => $priority->requiresAccessibleTable($priorityType),
-                'estimated_wait' => $this->estimateWait($partySize),
-                'last_estimated_wait' => $this->estimateWait($partySize),
+                'estimated_wait' => 0,
+                'last_estimated_wait' => 0,
                 'joined_at' => now(),
                 'source' => $source,
                 'device_type' => $deviceType,
                 'queue_display_number' => $displayNumber,
             ]);
         });
+
+        $this->refreshEstimatedWaits();
+        $entry->refresh();
 
         if ($phone !== '') {
             dispatch(new SendSmsJob($phone, 'queue_joined', [
@@ -193,6 +198,7 @@ class QueueService
         }
 
         Cache::forget('tables.venue.1');
+        $this->refreshEstimatedWaits();
     }
 
     public function cancel(int $entryId): void
@@ -212,6 +218,8 @@ class QueueService
                 'reserved_table_id' => null,
             ]);
         });
+
+        $this->refreshEstimatedWaits();
     }
 
     /**
@@ -263,6 +271,7 @@ class QueueService
 
         AutomationLog::record('queue_holds', 'Skipped hold expired', ['entry_id' => $entryId]);
         $this->notifyNextAfterTableRelease();
+        $this->refreshEstimatedWaits();
     }
 
     /**
@@ -274,6 +283,8 @@ class QueueService
      */
     public function notifyNextMatchingTables(): void
     {
+        $this->refreshEstimatedWaits();
+
         if (!AutomationSettings::bool('automation_notify_queue_on_release', true)) {
             return;
         }
@@ -341,6 +352,8 @@ class QueueService
                 'hold_expires_at' => now()->addMinutes($holdMinutes),
                 'reserved_table_id' => $table->id,
                 'hold_confirmation_code' => $code,
+                'estimated_wait' => 0,
+                'last_estimated_wait' => 0,
             ]);
 
             $reservedOk = true;
@@ -366,6 +379,7 @@ class QueueService
         ]));
 
         Cache::forget('tables.venue.1');
+        $this->refreshEstimatedWaits();
     }
 
     /**
@@ -439,6 +453,8 @@ class QueueService
                 'notified_at' => now(),
                 'hold_expires_at' => now()->addMinutes($holdMinutes),
                 'reserved_table_id' => $table->id,
+                'estimated_wait' => 0,
+                'last_estimated_wait' => 0,
             ];
 
             if ($entry->hold_confirmation_code === null || $entry->hold_confirmation_code === '') {
@@ -461,41 +477,178 @@ class QueueService
         ]));
 
         Cache::forget('tables.venue.1');
+        $this->refreshEstimatedWaits();
+        $entry->refresh();
 
         return $entry;
     }
 
-    public function estimateWait(int $partySize): int
+    public function estimateWait(int $partySize, string $priorityType = 'none'): int
     {
-        $duration = max(1, (int) config('operations.occupancy_duration_minutes', 90));
+        $priority = app(PriorityService::class);
+        $entry = new QueueEntry([
+            'party_size' => $partySize,
+            'priority_type' => $priorityType,
+            'priority_score' => $priority->getScore($priorityType),
+            'needs_accessible' => $priority->requiresAccessibleTable($priorityType),
+            'status' => 'waiting',
+            'joined_at' => now(),
+        ]);
 
-        $occupied = Table::where('status', 'occupied')
-            ->where('capacity', '>=', $partySize)
-            ->get();
+        $waiting = QueueEntry::waiting()->get()->push($entry);
+        $estimates = $this->calculateWaitEstimates($waiting);
 
-        if ($occupied->isEmpty()) {
-            return 0;
+        return $estimates[$this->entryEstimateKey($entry)] ?? self::BASE_WAIT_PER_QUEUE_POSITION;
+    }
+
+    /**
+     * Recalculate saved ETA values for the active waiting queue.
+     *
+     * @return array<int, int> queue entry id => ETA minutes
+     */
+    public function refreshEstimatedWaits(): array
+    {
+        $waiting = QueueEntry::waiting()->get();
+        $estimates = $this->calculateWaitEstimates($waiting);
+
+        foreach ($waiting as $entry) {
+            $new = $estimates[$this->entryEstimateKey($entry)] ?? self::BASE_WAIT_PER_QUEUE_POSITION;
+            if ((int) ($entry->estimated_wait ?? -1) === $new
+                && (int) ($entry->last_estimated_wait ?? -1) === $new) {
+                continue;
+            }
+
+            QueueEntry::query()
+                ->whereKey($entry->id)
+                ->update([
+                    'estimated_wait' => $new,
+                    'last_estimated_wait' => $new,
+                ]);
         }
 
-        $avgRemaining = $occupied->map(function ($t) use ($duration) {
-            $occupiedAt = $t->occupied_at;
-            if ($occupiedAt === null) {
-                return $duration;
+        return collect($estimates)
+            ->filter(fn ($value, $key) => is_int($key))
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, QueueEntry>  $waiting
+     * @return array<int|string, int>
+     */
+    private function calculateWaitEstimates(Collection $waiting): array
+    {
+        if ($waiting->isEmpty()) {
+            return [];
+        }
+
+        $waiting = $this->sortWaitingEntries($waiting);
+        $availableTables = Table::query()
+            ->where('status', 'available')
+            ->orderBy('capacity')
+            ->orderBy('id')
+            ->get()
+            ->values();
+        $allTables = Table::query()
+            ->orderBy('capacity')
+            ->orderBy('id')
+            ->get()
+            ->values();
+
+        $estimates = [];
+
+        foreach ($waiting as $entry) {
+            $availableIndex = $availableTables->search(fn (Table $table) => $this->tableFitsEntry($entry, $table));
+
+            if ($availableIndex !== false) {
+                $estimates[$this->entryEstimateKey($entry)] = 0;
+                $availableTables->forget($availableIndex);
+                $availableTables = $availableTables->values();
+
+                continue;
             }
 
-            if ($occupiedAt->isFuture()) {
-                return $duration;
+            $ahead = $this->compatibleWaitingGroupsAhead($entry, $waiting, $allTables);
+            $estimates[$this->entryEstimateKey($entry)] = min(
+                65535,
+                max(self::BASE_WAIT_PER_QUEUE_POSITION, ($ahead + 1) * self::BASE_WAIT_PER_QUEUE_POSITION)
+            );
+        }
+
+        return $estimates;
+    }
+
+    /**
+     * @param  Collection<int, QueueEntry>  $entries
+     */
+    private function sortWaitingEntries(Collection $entries): Collection
+    {
+        return $entries->sort(function (QueueEntry $a, QueueEntry $b) {
+            $priority = (int) ($b->priority_score ?? 0) <=> (int) ($a->priority_score ?? 0);
+            if ($priority !== 0) {
+                return $priority;
             }
 
-            // Elapsed since seat: use start->diffInMinutes(end, true) so the sign is always correct.
-            // (now()->diffInMinutes($occupied_at) defaults to absolute=false and can be negative when
-            // occupied_at is in the future, which made $duration - $elapsed explode past column limits.)
-            $elapsed = max(0, (int) round($occupiedAt->diffInMinutes(now(), true)));
+            $aTime = ($a->joined_at ?? $a->created_at ?? now())->getTimestamp();
+            $bTime = ($b->joined_at ?? $b->created_at ?? now())->getTimestamp();
+            if ($aTime !== $bTime) {
+                return $aTime <=> $bTime;
+            }
 
-            return max(0, $duration - $elapsed);
-        })->average();
+            return (int) ($a->id ?? PHP_INT_MAX) <=> (int) ($b->id ?? PHP_INT_MAX);
+        })->values();
+    }
 
-        return min(65535, max(0, (int) round($avgRemaining)));
+    /**
+     * @param  Collection<int, QueueEntry>  $waiting
+     * @param  Collection<int, Table>  $allTables
+     */
+    private function compatibleWaitingGroupsAhead(QueueEntry $target, Collection $waiting, Collection $allTables): int
+    {
+        $count = 0;
+
+        foreach ($waiting as $entry) {
+            if ($this->sameQueueEntry($entry, $target)) {
+                break;
+            }
+
+            if ($this->entriesCompeteForTables($target, $entry, $allTables)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param  Collection<int, Table>  $allTables
+     */
+    private function entriesCompeteForTables(QueueEntry $target, QueueEntry $ahead, Collection $allTables): bool
+    {
+        if ($allTables->isEmpty()) {
+            return true;
+        }
+
+        $targetTables = $allTables->filter(fn (Table $table) => $this->tableFitsEntry($target, $table));
+
+        if ($targetTables->isEmpty()) {
+            return true;
+        }
+
+        return $targetTables->contains(fn (Table $table) => $this->tableFitsEntry($ahead, $table));
+    }
+
+    private function sameQueueEntry(QueueEntry $a, QueueEntry $b): bool
+    {
+        if ($a->exists && $b->exists) {
+            return (int) $a->id === (int) $b->id;
+        }
+
+        return $a === $b;
+    }
+
+    private function entryEstimateKey(QueueEntry $entry): int|string
+    {
+        return $entry->exists ? (int) $entry->id : 'new';
     }
 
     public function positionFor(QueueEntry $entry): int

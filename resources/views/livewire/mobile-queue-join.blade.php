@@ -58,7 +58,12 @@
     @if($step === 3)
         <h1 class="font-forum text-3xl text-cream text-center mb-6">You’re in line</h1>
         @php
-            $waitEst = app(\App\Services\QueueService::class)->estimateWait($party_size);
+            $queueEntry = \App\Models\QueueEntry::query()
+                ->where('queue_display_number', $queueNumber)
+                ->latest('joined_at')
+                ->first();
+            $waitEst = $queueEntry?->waitEstimateMinutes()
+                ?? app(\App\Services\QueueService::class)->estimateWait((int) $party_size, (string) ($priority_type ?? 'none'));
         @endphp
         <x-queue-status :queueNumber="$queueNumber" :position="$position" :wait="$waitEst" />
         <a href="{{ url('/mobile') }}" wire:navigate class="mt-8 block text-center text-sm text-cream/70 underline min-h-12 leading-[48px]">Back to menu</a>

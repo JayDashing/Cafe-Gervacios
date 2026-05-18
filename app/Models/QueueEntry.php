@@ -38,6 +38,10 @@ class QueueEntry extends Model
 
     protected $casts = [
         'needs_accessible' => 'boolean',
+        'party_size' => 'integer',
+        'priority_score' => 'integer',
+        'estimated_wait' => 'integer',
+        'last_estimated_wait' => 'integer',
         'joined_at' => 'datetime',
         'notified_at' => 'datetime',
         'seated_at' => 'datetime',
@@ -75,6 +79,20 @@ class QueueEntry extends Model
     public function isPriority(): bool
     {
         return $this->priority_score >= 100;
+    }
+
+    public function waitEstimateMinutes(): ?int
+    {
+        $minutes = $this->estimated_wait ?? $this->last_estimated_wait;
+
+        return $minutes === null ? null : (int) $minutes;
+    }
+
+    public function waitEstimateLabel(): string
+    {
+        $minutes = $this->waitEstimateMinutes();
+
+        return $minutes === null ? 'Not calculated' : $minutes.' min';
     }
 
     /**

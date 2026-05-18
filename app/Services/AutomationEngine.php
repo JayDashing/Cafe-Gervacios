@@ -151,14 +151,16 @@ class AutomationEngine
         $queue = app(QueueService::class);
         $jump = AutomationSettings::int('automation_wait_increase_minutes', (int) config('automation.wait_increase_alert_minutes', 10));
 
-        foreach (QueueEntry::waiting()->get() as $entry) {
-            $new = $queue->estimateWait((int) $entry->party_size);
-            $old = (int) ($entry->last_estimated_wait ?? $entry->estimated_wait ?? 0);
+        $waiting = QueueEntry::waiting()->get();
+        $oldWaits = $waiting->mapWithKeys(fn (QueueEntry $entry) => [
+            $entry->id => (int) ($entry->last_estimated_wait ?? $entry->estimated_wait ?? 0),
+        ]);
+        $newWaits = $queue->refreshEstimatedWaits();
 
-            $entry->update([
-                'estimated_wait' => $new,
-                'last_estimated_wait' => $new,
-            ]);
+        foreach ($waiting as $entry) {
+            $new = (int) ($newWaits[$entry->id] ?? $entry->refresh()->estimated_wait ?? 0);
+            $old = (int) ($entry->last_estimated_wait ?? $entry->estimated_wait ?? 0);
+            $old = (int) ($oldWaits[$entry->id] ?? $old);
 
             if ($old > 0 && $new >= $old + $jump && $entry->wait_alert_sent_at === null) {
                 dispatch(new SendSmsJob($entry->customer_phone, 'wait_extended', [
