@@ -119,7 +119,7 @@ class SeatApiController extends Controller
         DB::transaction(function () use ($validated) {
             foreach ($validated['tables'] as $row) {
                 $table = Table::query()->lockForUpdate()->findOrFail((int) $row['id']);
-                $seatCount = $table->seats()->count();
+                $seatCount = $this->minimumCapacityFor($table);
                 $capacity = (int) $row['capacity'];
 
                 if ($capacity < $seatCount) {
@@ -456,7 +456,7 @@ class SeatApiController extends Controller
                 $meta['label'] = $label;
             }
             if ($hasCapacity) {
-                $seatCount = Seat::query()->where('table_id', $tableId)->count();
+                $seatCount = $this->minimumCapacityFor($table);
                 $cap = (int) $validated['capacity'];
                 if ($cap < $seatCount) {
                     throw ValidationException::withMessages([
@@ -494,6 +494,7 @@ class SeatApiController extends Controller
                 'id' => $table->id,
                 'label' => $table->label,
                 'capacity' => (int) $table->capacity,
+                'min_capacity' => $this->minimumCapacityFor($table),
                 'furniture_type' => $table->furniture_type ?? 'standard',
             ],
         ]);
@@ -528,7 +529,15 @@ class SeatApiController extends Controller
                 return;
             }
 
-            if ($table->seats()->count() <= 1) {
+            $seatCount = $table->seats()->count();
+            if ($seatCount <= 1) {
+                $capacity = (int) $table->capacity;
+                if ($capacity > 1) {
+                    $table->update(['capacity' => $capacity - 1]);
+
+                    return;
+                }
+
                 $table->delete();
 
                 return;
@@ -544,7 +553,9 @@ class SeatApiController extends Controller
                 $i++;
             }
 
-            $table->update(['capacity' => $remaining->count()]);
+            $table->update([
+                'capacity' => max($remaining->count(), ((int) $table->capacity) - 1),
+            ]);
         });
 
         $tableStillExists = Table::query()->where('id', $tableId)->exists();
@@ -977,6 +988,15 @@ class SeatApiController extends Controller
         }
 
         return $table->bookings()->exists();
+    }
+
+    private function minimumCapacityFor(Table $table): int
+    {
+        $mappedSeats = $table->relationLoaded('seats')
+            ? $table->seats->count()
+            : $table->seats()->count();
+
+        return max(1, $mappedSeats, (int) $table->capacity);
     }
 
     private function seatStatusToTableStatus(string $seatStatus): string

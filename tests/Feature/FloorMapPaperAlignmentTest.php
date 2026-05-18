@@ -159,6 +159,18 @@ class FloorMapPaperAlignmentTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['capacity']);
+
+        [$singleMarkerTable, $singleMarkerSeat] = $this->tableWithSeats('Legacy4', 4, [[30, 30]]);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.seats.update'), [
+                'seat_id' => $singleMarkerSeat->id,
+                'capacity' => 3,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['capacity']);
+
+        $this->assertSame(4, $singleMarkerTable->refresh()->capacity);
     }
 
     public function test_grouping_seats_creates_one_table_and_preserves_positions(): void
@@ -278,6 +290,21 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->assertJsonPath('removed_table_id', $table->id);
 
         $this->assertDatabaseMissing('tables', ['id' => $table->id]);
+
+        [$legacyTable, $legacySeat] = $this->tableWithSeats('D2', 4, [[40, 40]]);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.seats.delete'), [
+                'seat_id' => $legacySeat->id,
+                'scope' => 'seat',
+            ])
+            ->assertOk()
+            ->assertJsonPath('removed_table_id', null);
+
+        $this->assertDatabaseHas('tables', [
+            'id' => $legacyTable->id,
+            'capacity' => 3,
+        ]);
     }
 
     public function test_delete_table_with_existing_bookings_is_blocked(): void

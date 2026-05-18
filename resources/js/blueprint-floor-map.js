@@ -171,6 +171,7 @@ class BlueprintFloorMap {
             seat_id: Number(table.seat_id || 0),
             seat_ids: Array.isArray(table.seat_ids) ? table.seat_ids.map((id) => Number(id)).filter(Boolean) : [],
             capacity: Number(table.capacity || 1),
+            min_capacity: Number(table.min_capacity || table.capacity || 1),
             seat_count: Number(table.seat_count || 1),
             status: normalizeStatus(table.status),
             x,
@@ -395,6 +396,7 @@ class BlueprintFloorMap {
                     id: Number(row.id),
                     label: String(row.label || existing?.label || ''),
                     capacity: Number(row.capacity || existing?.capacity || 1),
+                    min_capacity: Number(row.min_capacity || existing?.min_capacity || row.capacity || existing?.capacity || 1),
                     seat_count: Number(row.seat_count || existing?.seat_count || 1),
                     status: normalizeStatus(row.status || existing?.status),
                     x: existing ? existing.x : fallbackX,
@@ -1248,7 +1250,9 @@ class BlueprintFloorMap {
 
     editPanelHtml(table) {
         const seatCount = Math.max(1, Number(table.seat_count || 1));
+        const minimumCapacity = Math.max(1, Number(table.min_capacity || table.capacity || seatCount));
         const canSplit = this.editMode && this.apiUnmerge && seatCount > 1;
+        const canRemoveSeat = minimumCapacity > 1;
 
         return `
             <div class="grid gap-3 p-4">
@@ -1268,8 +1272,8 @@ class BlueprintFloorMap {
                     </div>
                     <div>
                         <label class="bfm-field-label">Capacity</label>
-                        <input class="bfm-input" type="number" min="${seatCount}" max="99" data-edit-field="capacity" value="${Number(table.capacity)}">
-                        <p class="mt-1 text-[11px] font-medium text-slate-500">Minimum: ${seatCount} mapped ${seatCount === 1 ? 'seat' : 'seats'}.</p>
+                        <input class="bfm-input" type="number" min="${minimumCapacity}" max="99" data-edit-field="capacity" value="${Number(table.capacity)}">
+                        <p class="mt-1 text-[11px] font-medium text-slate-500">Minimum: ${minimumCapacity} mapped ${minimumCapacity === 1 ? 'seat' : 'seats'}.</p>
                     </div>
                     <div class="sm:col-span-2">
                         <label class="bfm-field-label">Shape / type</label>
@@ -1294,7 +1298,7 @@ class BlueprintFloorMap {
                 <div class="rounded-xl border border-rose-200 bg-rose-50/40 p-3">
                     <p class="text-[11px] font-bold uppercase tracking-wide text-rose-900">Danger zone</p>
                     <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        ${seatCount > 1 ? `
+                        ${canRemoveSeat ? `
                             <button type="button" class="bfm-action border-rose-200 bg-white text-rose-800" data-panel-action="delete-seat">
                                 Remove One Seat
                             </button>
@@ -1648,6 +1652,7 @@ class BlueprintFloorMap {
         const label = String(this.panel.querySelector('[data-edit-field="label"]')?.value || '').trim();
         const capacity = Number(this.panel.querySelector('[data-edit-field="capacity"]')?.value || 1);
         const furnitureType = String(this.panel.querySelector('[data-edit-field="type"]')?.value || 'standard');
+        const minimumCapacity = Math.max(1, Number(table.min_capacity || table.capacity || table.seat_count || 1));
 
         if (!label) {
             notify('error', 'Enter a table name.');
@@ -1659,8 +1664,13 @@ class BlueprintFloorMap {
             return;
         }
 
+        if (capacity < minimumCapacity) {
+            notify('error', `Capacity must be at least ${minimumCapacity} mapped ${minimumCapacity === 1 ? 'seat' : 'seats'}.`);
+            return;
+        }
+
         try {
-            await axios.post(this.apiUpdate, {
+            const response = await axios.post(this.apiUpdate, {
                 seat_id: table.seat_id,
                 label,
                 capacity,
@@ -1671,6 +1681,7 @@ class BlueprintFloorMap {
 
             table.label = label;
             table.capacity = capacity;
+            table.min_capacity = Number(response.data?.table?.min_capacity || capacity);
             table.furniture_type = furnitureType;
             this.render();
             notify('success', 'Marker saved.');
@@ -1682,7 +1693,7 @@ class BlueprintFloorMap {
     async deleteSelectedSeat() {
         const table = this.selectedTableId ? this.table(this.selectedTableId) : null;
         if (!table?.seat_id || !this.apiDelete) return;
-        if (Number(table.seat_count || 1) <= 1) {
+        if (Math.max(1, Number(table.min_capacity || table.capacity || table.seat_count || 1)) <= 1) {
             notify('error', 'This table only has one mapped seat.');
             return;
         }

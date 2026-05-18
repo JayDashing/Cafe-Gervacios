@@ -33,6 +33,7 @@
             'seat_ids' => $group->seats->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
             'label' => (string) $table->label,
             'capacity' => (int) $table->capacity,
+            'min_capacity' => max(1, (int) $table->capacity, (int) $group->seats->count()),
             'status' => (string) $table->status,
             'status_label' => $statusLabel((string) $table->status),
             'x' => (float) $group->anchor_x,
