@@ -360,6 +360,6 @@ class SeatingLayoutController extends Controller
 
     public function __invoke()
     {
-        return redirect()->route('admin.tables', ['edit' => 1]);
+        return view('admin.seating-layout', self::layoutData());
     }
 }

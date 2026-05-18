@@ -160,7 +160,7 @@
                             Add the cafe floor image in Edit Layout, then place table markers on top of it.
                         </p>
                         @if ($canEditBlueprint && ! $editMode)
-                            <a href="{{ route('admin.tables', ['edit' => 1]) }}"
+                            <a href="{{ route('admin.seating-layout') }}"
                                 class="tc-admin-btn-primary mt-4 inline-flex min-h-10 items-center justify-center gap-2 px-4 py-2 text-sm">
                                 <i class="fa-solid fa-pen-ruler text-xs" aria-hidden="true"></i>
                                 Edit Layout

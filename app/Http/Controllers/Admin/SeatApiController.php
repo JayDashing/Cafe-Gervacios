@@ -246,9 +246,9 @@ class SeatApiController extends Controller
 
         $table = Table::query()->findOrFail((int) $validated['table_id']);
 
-        if ($this->tableHasActiveBooking($table)) {
+        if ($this->tableCannotBeRemoved($table)) {
             throw ValidationException::withMessages([
-                'table_id' => ['This table has an active booking and cannot be deleted.'],
+                'table_id' => ['This table has bookings or is currently in use and cannot be deleted.'],
             ]);
         }
 
@@ -512,9 +512,9 @@ class SeatApiController extends Controller
         $seat = Seat::query()->findOrFail($validated['seat_id']);
         $table = Table::query()->findOrFail($seat->table_id);
 
-        if ($table->bookings()->exists()) {
+        if ($this->tableCannotBeRemoved($table)) {
             throw ValidationException::withMessages([
-                'seat_id' => ['This table has bookings and cannot be removed.'],
+                'seat_id' => ['This table has bookings or is currently in use and cannot be removed.'],
             ]);
         }
 
@@ -964,6 +964,19 @@ class SeatApiController extends Controller
         return $table->bookings()
             ->whereIn('status', ['active', 'pending'])
             ->exists();
+    }
+
+    private function tableCannotBeRemoved(Table $table): bool
+    {
+        if (in_array($table->status, [Table::STATUS_RESERVED, Table::STATUS_OCCUPIED], true)) {
+            return true;
+        }
+
+        if ($this->tableHasActiveBooking($table)) {
+            return true;
+        }
+
+        return $table->bookings()->exists();
     }
 
     private function seatStatusToTableStatus(string $seatStatus): string

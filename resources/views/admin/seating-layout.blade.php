@@ -27,7 +27,7 @@
         @include('admin.partials.seating-map-inner', [
             'fullEditor' => true,
             'showToolbar' => true,
-            'enableGrouping' => false,
+            'enableGrouping' => true,
         ])
     </div>
 @endsection

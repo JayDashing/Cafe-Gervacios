@@ -59,6 +59,12 @@ function hasActiveWaitlistPickState() {
     return lastWaitlistPickTableId !== null;
 }
 
+function currentClickMode(dashboard) {
+    const mode = dashboard?.dataset?.seatClickMode;
+
+    return ['edit', 'waitlist', 'table'].includes(mode) ? mode : 'table';
+}
+
 function parseTableIdPayload(payload) {
     if (payload == null) {
         return null;
@@ -100,10 +106,16 @@ function bindDashboardSeatDotGestures() {
                 return;
             }
 
+            const mode = currentClickMode(ctx.dashboard);
+
+            if (mode === 'edit') {
+                return;
+            }
+
             e.preventDefault();
             e.stopImmediatePropagation();
 
-            if (hasActiveWaitlistPickState()) {
+            if (mode === 'waitlist' || hasActiveWaitlistPickState()) {
                 lastWaitlistPickTableId = tid;
                 window.Livewire.dispatch('table-selected', { tableId: tid });
                 setWaitlistPickVisual(tid);

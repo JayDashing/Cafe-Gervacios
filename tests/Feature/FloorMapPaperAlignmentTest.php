@@ -43,9 +43,21 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->assertOk()
             ->assertSee('Floor Map')
             ->assertSee('Calendar')
+            ->assertSee('Edit Layout')
+            ->assertSee(route('admin.seating-layout'), false)
             ->assertSeeHtml('data-blueprint-floor-map')
             ->assertSeeHtml('data-operations-mode="false"')
             ->assertDontSee('Table List');
+    }
+
+    public function test_full_layout_editor_exposes_grouping_and_delete_tools(): void
+    {
+        $this->actingAs($this->admin())
+            ->get(route('admin.seating-layout'))
+            ->assertOk()
+            ->assertSee('Selection')
+            ->assertSee('Group as table')
+            ->assertSee('Danger zone: remove from map');
     }
 
     public function test_admin_can_place_table_and_invalid_coordinates_are_rejected(): void
@@ -293,10 +305,30 @@ class FloorMapPaperAlignmentTest extends TestCase
         $this->assertDatabaseHas('tables', ['id' => $table->id]);
     }
 
+    public function test_occupied_table_cannot_be_deleted_from_floor_map(): void
+    {
+        [$table, $seat] = $this->tableWithSeats('O1', 2, [[10, 10]]);
+        $table->update(['status' => 'occupied']);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.seats.delete'), [
+                'seat_id' => $seat->id,
+                'scope' => 'table',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['seat_id']);
+
+        $this->assertDatabaseHas('tables', ['id' => $table->id]);
+        $this->assertDatabaseHas('seats', ['id' => $seat->id]);
+    }
+
     public function test_dashboard_seat_map_click_mode_updates_and_clears_selection(): void
     {
         Livewire::actingAs($this->admin())
             ->test(DashboardSeatMap::class)
+            ->assertSee('Edit')
+            ->assertSee('Waitlist')
+            ->assertSee('Table')
             ->assertSet('seatClickMode', 'edit')
             ->call('setSeatClickMode', 'waitlist')
             ->assertSet('seatClickMode', 'waitlist')

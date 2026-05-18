@@ -136,6 +136,46 @@
             gap: 0.35rem;
         }
 
+        .dsm-mode-switch {
+            display: inline-flex;
+            min-height: 2rem;
+            align-items: center;
+            overflow: hidden;
+            border: 1px solid #d8dee8;
+            border-radius: 0.65rem;
+            background: #f8fafc;
+        }
+
+        .dsm-mode-switch button {
+            display: inline-flex;
+            min-height: 2rem;
+            align-items: center;
+            justify-content: center;
+            border: 0;
+            border-right: 1px solid #d8dee8;
+            background: transparent;
+            padding: 0 0.65rem;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 800;
+            line-height: 1;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .dsm-mode-switch button:last-child {
+            border-right: 0;
+        }
+
+        .dsm-mode-switch button:hover {
+            background: #eef2f7;
+            color: #0f172a;
+        }
+
+        .dsm-mode-switch button.is-active {
+            background: #0f172a;
+            color: #fff;
+        }
+
         .dsm-info-popover {
             display: none;
             position: relative;
@@ -391,6 +431,23 @@
             </div>
 
             <div class="dsm-toolbar-actions">
+                <div class="dsm-mode-switch" role="group" aria-label="Floor map click mode">
+                    <button type="button" wire:click="setSeatClickMode('edit')"
+                        class="{{ $seatClickMode === 'edit' ? 'is-active' : '' }}"
+                        aria-pressed="{{ $seatClickMode === 'edit' ? 'true' : 'false' }}">
+                        Edit
+                    </button>
+                    <button type="button" wire:click="setSeatClickMode('waitlist')"
+                        class="{{ $seatClickMode === 'waitlist' ? 'is-active' : '' }}"
+                        aria-pressed="{{ $seatClickMode === 'waitlist' ? 'true' : 'false' }}">
+                        Waitlist
+                    </button>
+                    <button type="button" wire:click="setSeatClickMode('table')"
+                        class="{{ $seatClickMode === 'table' ? 'is-active' : '' }}"
+                        aria-pressed="{{ $seatClickMode === 'table' ? 'true' : 'false' }}">
+                        Table
+                    </button>
+                </div>
                 @unless (request()->routeIs('admin.tables'))
                     @include('admin.partials.seat-focus-mode-button')
                 @endunless
