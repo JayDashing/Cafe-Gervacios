@@ -114,6 +114,11 @@
                     <i class="fa-solid fa-floppy-disk text-[11px]" aria-hidden="true"></i>
                     Save Layout
                 </button>
+                <button type="button" class="tc-admin-btn-secondary inline-flex min-h-9 items-center justify-center gap-2 px-3 py-2 text-xs"
+                    data-blueprint-action="start-merge">
+                    <i class="fa-solid fa-object-group text-[11px]" aria-hidden="true"></i>
+                    Merge Tables
+                </button>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 @if ($hasFloorplan)

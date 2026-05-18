@@ -724,6 +724,7 @@ class BlueprintFloorMap {
     }
 
     candidateCanJoinSelection(tableId) {
+        if (this.editMode && this.apiGroup) return true;
         if (this.selectedIds.has(tableId)) return true;
         if (this.selectedIds.size === 0) return true;
 
@@ -1797,7 +1798,7 @@ class BlueprintFloorMap {
 
     openMergeModal() {
         if (this.selectedIds.size < 2 || !this.mergeModal) return;
-        if (!this.mergeSetIsConnected([...this.selectedIds])) {
+        if (!(this.editMode && this.apiGroup) && !this.mergeSetIsConnected([...this.selectedIds])) {
             notify('error', 'These tables are too far apart to merge.');
             return;
         }
@@ -1823,7 +1824,7 @@ class BlueprintFloorMap {
     async mergeSelected() {
         const ids = [...this.selectedIds].map(Number).filter(Boolean);
         if (ids.length < 2) return;
-        if (!this.mergeSetIsConnected(ids)) {
+        if (!(this.editMode && this.apiGroup) && !this.mergeSetIsConnected(ids)) {
             notify('error', 'These tables are too far apart to merge.');
             return;
         }
