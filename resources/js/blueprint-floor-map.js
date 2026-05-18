@@ -21,7 +21,7 @@ const STATUS_CLASSES = {
 };
 
 const MERGE_DISTANCE_LIMIT = 18;
-const BOUNDARY_ERROR = 'Table marker must stay inside the blueprint area.';
+const BOUNDARY_ERROR = 'Table marker must stay inside the blueprint image.';
 const DEFAULT_MARKER_WIDTH = 58;
 const DEFAULT_MARKER_HEIGHT = 42;
 
@@ -108,6 +108,8 @@ class BlueprintFloorMap {
     constructor(root) {
         this.root = root;
         this.stage = root.querySelector('[data-blueprint-stage]');
+        this.blueprint = root.querySelector('[data-blueprint-image], .bfm-blueprint');
+        this.mapScroll = root.querySelector('.bfm-map-scroll');
         this.body = root.querySelector('[data-blueprint-body]');
         this.panel = root.querySelector('[data-blueprint-panel]');
         this.mergeLayer = root.querySelector('[data-blueprint-merge-layer]');
@@ -170,9 +172,10 @@ class BlueprintFloorMap {
             this.handleAction(actionButton.dataset.blueprintAction, actionButton);
         });
 
-        this.stage?.addEventListener('click', (event) => {
+        this.root.addEventListener('click', (event) => {
             if (!this.pendingMarker) return;
             if (event.target.closest('[data-blueprint-marker]')) return;
+            if (event.target.closest('[data-blueprint-action], [data-blueprint-panel], .bfm-edit-toolbar')) return;
 
             const point = this.pointFromEvent(event, null, this.pendingMarker);
             if (!point) {
@@ -181,6 +184,7 @@ class BlueprintFloorMap {
             }
             if (point.clamped) {
                 notify('error', BOUNDARY_ERROR);
+                return;
             }
             this.placeMarker(point);
         });
@@ -200,6 +204,8 @@ class BlueprintFloorMap {
                 this.uploadForm?.submit();
             }
         });
+
+        this.blueprint?.addEventListener('load', () => this.render());
     }
 
     bindMarker(marker) {
@@ -329,9 +335,17 @@ class BlueprintFloorMap {
         };
     }
 
-    markerBoundary(marker = null, table = null) {
-        const rect = this.stage?.getBoundingClientRect?.();
+    imageRect() {
+        const rect = this.blueprint?.getBoundingClientRect?.();
         if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+        return rect;
+    }
+
+    markerBoundary(marker = null, table = null) {
+        const rect = this.imageRect();
+        const stageRect = this.stage?.getBoundingClientRect?.();
+        if (!rect || !stageRect || rect.width <= 0 || rect.height <= 0) return null;
 
         const size = this.markerSize(marker, table);
         const halfWidth = Math.min(size.width / 2, rect.width / 2);
@@ -344,6 +358,8 @@ class BlueprintFloorMap {
             top: rect.top,
             containerWidth: rect.width,
             containerHeight: rect.height,
+            imageOffsetX: rect.left - stageRect.left,
+            imageOffsetY: rect.top - stageRect.top,
             markerWidth: size.width,
             markerHeight: size.height,
             minX: halfWidth,
@@ -355,14 +371,21 @@ class BlueprintFloorMap {
 
     boundaryPayload(bounds) {
         return {
-            container_width: Number(bounds.containerWidth.toFixed(2)),
-            container_height: Number(bounds.containerHeight.toFixed(2)),
+            image_width: Number(bounds.containerWidth.toFixed(2)),
+            image_height: Number(bounds.containerHeight.toFixed(2)),
             marker_width: Number(bounds.markerWidth.toFixed(2)),
             marker_height: Number(bounds.markerHeight.toFixed(2)),
         };
     }
 
-    pointFromPixels(pixelX, pixelY, bounds) {
+    pointFromPixels(pixelX, pixelY, bounds, rejectOutside = false) {
+        if (
+            rejectOutside
+            && (pixelX < 0 || pixelY < 0 || pixelX > bounds.containerWidth || pixelY > bounds.containerHeight)
+        ) {
+            return null;
+        }
+
         const x = clamp(pixelX, bounds.minX, bounds.maxX);
         const y = clamp(pixelY, bounds.minY, bounds.maxY);
 
@@ -378,7 +401,7 @@ class BlueprintFloorMap {
         const bounds = this.markerBoundary(marker, table);
         if (!bounds) return null;
 
-        return this.pointFromPixels(event.clientX - bounds.left, event.clientY - bounds.top, bounds);
+        return this.pointFromPixels(event.clientX - bounds.left, event.clientY - bounds.top, bounds, true);
     }
 
     pointFromTable(table, marker = null) {
@@ -390,6 +413,26 @@ class BlueprintFloorMap {
             (finiteNumber(table.y, 50) / 100) * bounds.containerHeight,
             bounds,
         );
+    }
+
+    pointToStagePixels(point, bounds) {
+        return {
+            left: bounds.imageOffsetX + (finiteNumber(point.x, 0) / 100) * bounds.containerWidth,
+            top: bounds.imageOffsetY + (finiteNumber(point.y, 0) / 100) * bounds.containerHeight,
+        };
+    }
+
+    applyMarkerPosition(marker, table) {
+        const bounds = this.markerBoundary(marker, table);
+        if (!bounds) {
+            marker.style.left = `${table.x}%`;
+            marker.style.top = `${table.y}%`;
+            return;
+        }
+
+        const pixels = this.pointToStagePixels({ x: table.x, y: table.y }, bounds);
+        marker.style.left = `${pixels.left}px`;
+        marker.style.top = `${pixels.top}px`;
     }
 
     coordinatePayload(point) {
@@ -426,8 +469,12 @@ class BlueprintFloorMap {
 
         const startX = event.clientX;
         const startY = event.clientY;
+        const originalX = table.x;
+        const originalY = table.y;
+        const originalPendingMove = this.pendingMoves.get(table.id) || null;
         let moved = false;
         let clampedToBoundary = false;
+        let outsideImage = false;
 
         const move = (moveEvent) => {
             const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
@@ -438,13 +485,16 @@ class BlueprintFloorMap {
             if (!moved) return;
 
             const point = this.pointFromEvent(moveEvent, marker, table);
-            if (!point) return;
+            if (!point) {
+                outsideImage = true;
+                return;
+            }
 
+            outsideImage = false;
             clampedToBoundary ||= point.clamped;
             table.x = point.x;
             table.y = point.y;
-            marker.style.left = `${point.x}%`;
-            marker.style.top = `${point.y}%`;
+            this.applyMarkerPosition(marker, table);
             this.pendingMoves.set(table.id, this.coordinatePayload(point));
             this.renderGroups();
         };
@@ -457,6 +507,19 @@ class BlueprintFloorMap {
             marker.removeEventListener('pointercancel', up);
             if (moved) {
                 this.suppressClickForTable = tableId;
+                if (outsideImage) {
+                    table.x = originalX;
+                    table.y = originalY;
+                    if (originalPendingMove) {
+                        this.pendingMoves.set(table.id, originalPendingMove);
+                    } else {
+                        this.pendingMoves.delete(table.id);
+                    }
+                    this.applyMarkerPosition(marker, table);
+                    this.renderGroups();
+                    notify('error', BOUNDARY_ERROR);
+                    return;
+                }
                 notify(
                     clampedToBoundary ? 'error' : 'success',
                     clampedToBoundary ? BOUNDARY_ERROR : 'Marker moved. Click Save Layout to keep the new position.',
@@ -568,8 +631,7 @@ class BlueprintFloorMap {
             const canCompareMergeDistance = this.selectionMode && this.selectedIds.size > 0 && !this.selectedIds.has(Number(table.id));
             marker.classList.toggle('is-merge-compatible', canCompareMergeDistance && this.candidateCanJoinSelection(Number(table.id)));
             marker.classList.toggle('is-merge-blocked', canCompareMergeDistance && !this.candidateCanJoinSelection(Number(table.id)));
-            marker.style.left = `${table.x}%`;
-            marker.style.top = `${table.y}%`;
+            this.applyMarkerPosition(marker, table);
             marker.setAttribute('aria-label', `${table.label}, ${statusLabel(status)}, ${table.capacity} seats`);
             marker.querySelector('.bfm-marker__name').textContent = table.label;
             marker.querySelector('.bfm-marker__status').textContent = statusLabel(status);
@@ -610,6 +672,8 @@ class BlueprintFloorMap {
         this.groups.forEach((group) => {
             const tables = this.groupTables(group);
             if (tables.length < 2) return;
+            const imageRect = this.imageRect();
+            const stageRect = this.stage?.getBoundingClientRect?.();
 
             const xs = tables.map((table) => Number(table.x));
             const ys = tables.map((table) => Number(table.y));
@@ -621,10 +685,19 @@ class BlueprintFloorMap {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = `bfm-group ${group.id === this.selectedGroupId ? 'is-selected' : ''}`;
-            button.style.left = `${(minX + maxX) / 2}%`;
-            button.style.top = `${(minY + maxY) / 2}%`;
-            button.style.width = `${Math.max(10, maxX - minX)}%`;
-            button.style.height = `${Math.max(12, maxY - minY)}%`;
+            if (imageRect && stageRect) {
+                const offsetX = imageRect.left - stageRect.left;
+                const offsetY = imageRect.top - stageRect.top;
+                button.style.left = `${offsetX + (((minX + maxX) / 2) / 100) * imageRect.width}px`;
+                button.style.top = `${offsetY + (((minY + maxY) / 2) / 100) * imageRect.height}px`;
+                button.style.width = `${Math.max(60, ((maxX - minX) / 100) * imageRect.width)}px`;
+                button.style.height = `${Math.max(60, ((maxY - minY) / 100) * imageRect.height)}px`;
+            } else {
+                button.style.left = `${(minX + maxX) / 2}%`;
+                button.style.top = `${(minY + maxY) / 2}%`;
+                button.style.width = `${Math.max(10, maxX - minX)}%`;
+                button.style.height = `${Math.max(12, maxY - minY)}%`;
+            }
             button.dataset.blueprintGroup = group.id;
             button.innerHTML = `
                 <span class="bfm-group__label">
@@ -994,8 +1067,9 @@ class BlueprintFloorMap {
                     return;
                 }
                 if (boundedPoint.clamped) {
-                    table.x = boundedPoint.x;
-                    table.y = boundedPoint.y;
+                    this.restorePendingMoves();
+                    notify('error', BOUNDARY_ERROR);
+                    return;
                 }
 
                 await axios.post(this.apiUpdate, {

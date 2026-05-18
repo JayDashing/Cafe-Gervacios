@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 class SeatApiController extends Controller
 {
     private const MERGE_DISTANCE_LIMIT = 18.0;
-    private const FLOOR_MAP_BOUNDARY_MESSAGE = 'Table marker must stay inside the blueprint area.';
+    private const FLOOR_MAP_BOUNDARY_MESSAGE = 'Table marker must stay inside the blueprint image.';
 
     public function index(): JsonResponse
     {
@@ -265,6 +265,8 @@ class SeatApiController extends Controller
         $validated = $request->validate([
             'pos_x' => ['required', 'numeric', 'min:0', 'max:100'],
             'pos_y' => ['required', 'numeric', 'min:0', 'max:100'],
+            'image_width' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
+            'image_height' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
             'container_width' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
             'container_height' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
             'marker_width' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
@@ -335,6 +337,8 @@ class SeatApiController extends Controller
             'furniture_type' => ['nullable', 'string', 'max:32'],
             'pos_x' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'pos_y' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'image_width' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
+            'image_height' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
             'container_width' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
             'container_height' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
             'marker_width' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
@@ -714,21 +718,23 @@ class SeatApiController extends Controller
 
     private function assertMarkerInsideBlueprint(array $data): void
     {
-        $dimensionKeys = [
-            'container_width',
-            'container_height',
-            'marker_width',
-            'marker_height',
-        ];
+        $dimensionKeys = ['image_width', 'image_height', 'marker_width', 'marker_height'];
+        $fallbackDimensionKeys = ['container_width', 'container_height', 'marker_width', 'marker_height'];
 
-        $hasDimensions = collect($dimensionKeys)
+        $hasImageDimensions = collect($dimensionKeys)
+            ->contains(fn (string $key) => array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '');
+        $hasFallbackDimensions = collect($fallbackDimensionKeys)
             ->contains(fn (string $key) => array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '');
 
-        if (! $hasDimensions) {
+        if (! $hasImageDimensions && ! $hasFallbackDimensions) {
             return;
         }
 
-        foreach ($dimensionKeys as $key) {
+        $widthKey = $hasImageDimensions ? 'image_width' : 'container_width';
+        $heightKey = $hasImageDimensions ? 'image_height' : 'container_height';
+        $requiredKeys = [$widthKey, $heightKey, 'marker_width', 'marker_height'];
+
+        foreach ($requiredKeys as $key) {
             if (! array_key_exists($key, $data) || $data[$key] === null || $data[$key] === '') {
                 throw ValidationException::withMessages([
                     'pos_x' => [self::FLOOR_MAP_BOUNDARY_MESSAGE],
@@ -737,8 +743,8 @@ class SeatApiController extends Controller
             }
         }
 
-        $containerWidth = (float) $data['container_width'];
-        $containerHeight = (float) $data['container_height'];
+        $containerWidth = (float) $data[$widthKey];
+        $containerHeight = (float) $data[$heightKey];
         $markerWidth = (float) $data['marker_width'];
         $markerHeight = (float) $data['marker_height'];
 

@@ -151,7 +151,7 @@
             @else
                 <div class="bfm-map-scroll tc-scrollbar overflow-auto rounded-lg bg-slate-100">
                     <div class="bfm-stage" data-blueprint-stage>
-                        <img src="{{ $floorplanUrl }}" alt="Cafe Gervacios floor blueprint" class="bfm-blueprint" draggable="false">
+                        <img src="{{ $floorplanUrl }}" alt="Cafe Gervacios floor blueprint" class="bfm-blueprint" data-blueprint-image draggable="false">
 
                         <div data-blueprint-merge-layer></div>
 

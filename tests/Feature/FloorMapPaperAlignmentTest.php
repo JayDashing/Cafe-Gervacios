@@ -28,6 +28,14 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->assertJsonPath('seats.0.table_capacity', 2);
     }
 
+    public function test_floor_map_editor_exposes_blueprint_image_boundary(): void
+    {
+        $this->actingAs($this->admin())
+            ->get(route('admin.tables', ['edit' => 1]))
+            ->assertOk()
+            ->assertSeeHtml('data-blueprint-image');
+    }
+
     public function test_admin_can_place_table_and_invalid_coordinates_are_rejected(): void
     {
         $this->actingAs($this->admin())
@@ -49,8 +57,8 @@ class FloorMapPaperAlignmentTest extends TestCase
                 'pos_x' => 96,
                 'pos_y' => 40,
                 'label' => 'P2',
-                'container_width' => 1000,
-                'container_height' => 600,
+                'image_width' => 1000,
+                'image_height' => 600,
                 'marker_width' => 80,
                 'marker_height' => 44,
             ])
@@ -72,14 +80,14 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->postJson(route('admin.api.seats.place'), [
                 'pos_x' => 99,
                 'pos_y' => 40,
-                'container_width' => 1000,
-                'container_height' => 600,
+                'image_width' => 1000,
+                'image_height' => 600,
                 'marker_width' => 80,
                 'marker_height' => 44,
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['pos_x', 'pos_y'])
-            ->assertJsonPath('errors.pos_x.0', 'Table marker must stay inside the blueprint area.');
+            ->assertJsonPath('errors.pos_x.0', 'Table marker must stay inside the blueprint image.');
 
         $this->assertDatabaseMissing('seats', ['pos_x' => 99, 'pos_y' => 40]);
     }
@@ -106,14 +114,14 @@ class FloorMapPaperAlignmentTest extends TestCase
                 'seat_id' => $seat->id,
                 'pos_x' => 99,
                 'pos_y' => 40,
-                'container_width' => 1000,
-                'container_height' => 600,
+                'image_width' => 1000,
+                'image_height' => 600,
                 'marker_width' => 80,
                 'marker_height' => 44,
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['pos_x', 'pos_y'])
-            ->assertJsonPath('errors.pos_x.0', 'Table marker must stay inside the blueprint area.');
+            ->assertJsonPath('errors.pos_x.0', 'Table marker must stay inside the blueprint image.');
 
         $seat->refresh();
         $this->assertSame(10.0, $seat->pos_x);
