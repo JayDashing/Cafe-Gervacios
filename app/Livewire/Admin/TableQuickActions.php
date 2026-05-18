@@ -24,6 +24,7 @@ class TableQuickActions extends Component
     public int $tablesSyncVersion = 0;
 
     #[On('tables-refresh')]
+    #[On('table-updated')]
     public function refreshFromTables(): void
     {
         $this->tablesSyncVersion++;
@@ -82,75 +83,66 @@ class TableQuickActions extends Component
         $this->dispatch('table-ops-select', tableId: null);
     }
 
-    /**
-     * Single status dropdown: uses release() for guests-left→cleaning and markReadyAfterCleaning for cleaning→free when needed.
-     */
-    public function applyStatusFromSelect(int $tableId, string $newStatus): void
+    public function seatWalkIn(int $tableId): void
     {
-        $table = Table::findOrFail($tableId);
-        Gate::authorize('update', $table);
-
-        if (! in_array($newStatus, ['available', 'occupied', 'reserved', 'unavailable', 'cleaning'], true)) {
-            return;
-        }
-
-        if ($table->status === $newStatus) {
-            return;
-        }
-
-        if ($table->status === 'occupied' && $newStatus === 'cleaning') {
-            $this->release($tableId);
-
-            return;
-        }
-
-        if ($table->status === 'cleaning' && $newStatus === 'available') {
-            $this->markReadyAfterCleaning($tableId);
-
-            return;
-        }
-
-        $this->overrideStatus($tableId, $newStatus);
+        $this->runTableAction($tableId, 'seatWalkIn', 'Walk-in seated.');
     }
 
-    public function overrideStatus(int $tableId, string $status): void
+    public function checkIn(int $tableId): void
     {
-        $table = Table::findOrFail($tableId);
-        Gate::authorize('update', $table);
+        $this->runTableAction($tableId, 'checkIn', 'Guest checked in.');
+    }
 
-        app(TableService::class)->override($tableId, $status);
-        Cache::forget('tables.venue.1');
-        $this->tablesSyncVersion++;
-        $this->dispatch('tables-refresh');
-        $this->dispatch('notify', type: 'success', message: $this->statusMessage($status));
+    public function releaseTable(int $tableId): void
+    {
+        $this->runTableAction($tableId, 'releaseTable', 'Table released.');
+    }
+
+    public function markFree(int $tableId): void
+    {
+        $this->runTableAction($tableId, 'markFree', 'Table marked free.');
+    }
+
+    public function sendToCleaning(int $tableId): void
+    {
+        $this->runTableAction($tableId, 'sendToCleaning', 'Table moved to cleaning.');
     }
 
     public function release(int $tableId): void
     {
-        $table = Table::findOrFail($tableId);
-        Gate::authorize('update', $table);
-
-        app(TableService::class)->release($tableId);
-        Cache::forget('tables.venue.1');
-        $this->tablesSyncVersion++;
-        $this->dispatch('tables-refresh');
-        $this->dispatch('notify', type: 'success', message: 'Table moved to cleaning.');
+        $this->sendToCleaning($tableId);
     }
 
     public function markReadyAfterCleaning(int $tableId): void
     {
+        $this->markFree($tableId);
+    }
+
+    private function runTableAction(int $tableId, string $method, string $successMessage): void
+    {
         $table = Table::findOrFail($tableId);
         Gate::authorize('update', $table);
 
-        if ($table->status !== 'cleaning') {
+        if (! in_array($method, ['seatWalkIn', 'checkIn', 'releaseTable', 'markFree', 'sendToCleaning'], true)) {
             return;
         }
 
-        app(TableService::class)->override($tableId, 'available');
-        Cache::forget('tables.venue.1');
-        $this->tablesSyncVersion++;
-        $this->dispatch('tables-refresh');
-        $this->dispatch('notify', type: 'success', message: 'Table marked free.');
+        try {
+            app(TableService::class)->{$method}($tableId);
+        } catch (\InvalidArgumentException $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+
+            return;
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+            $this->dispatch('notify', type: 'error', message: 'Invalid table status. Please refresh and try again.');
+
+            return;
+        }
+
+        $this->dispatchOperationsRefresh();
+        $this->clearSelection();
+        $this->dispatch('notify', type: 'success', message: $successMessage);
     }
 
     public function updateFurnitureType(int $tableId, string $furnitureType): void
@@ -164,8 +156,7 @@ class TableQuickActions extends Component
 
         $table->update(['furniture_type' => $furnitureType]);
         Cache::forget('tables.venue.1');
-        $this->tablesSyncVersion++;
-        $this->dispatch('tables-refresh');
+        $this->dispatchOperationsRefresh();
     }
 
     public function formatOccupancyTimer(Table $table): string
@@ -222,14 +213,12 @@ class TableQuickActions extends Component
         ]);
     }
 
-    private function statusMessage(string $status): string
+    private function dispatchOperationsRefresh(): void
     {
-        return match ($status) {
-            'available' => 'Table marked free.',
-            'reserved' => 'Table reserved.',
-            'occupied' => 'Table marked occupied.',
-            'cleaning' => 'Table moved to cleaning.',
-            default => 'Table updated.',
-        };
+        $this->tablesSyncVersion++;
+        $this->dispatch('tables-refresh');
+        $this->dispatch('table-updated');
+        $this->dispatch('queue-updated');
+        $this->dispatch('eta-recalculated');
     }
 }

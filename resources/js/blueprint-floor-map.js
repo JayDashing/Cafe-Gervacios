@@ -24,6 +24,9 @@ const MERGE_DISTANCE_LIMIT = 18;
 const BOUNDARY_ERROR = 'Table marker must stay inside the blueprint image.';
 const DEFAULT_MARKER_WIDTH = 58;
 const DEFAULT_MARKER_HEIGHT = 42;
+const BLUEPRINT_ZOOM_MIN = 0.6;
+const BLUEPRINT_ZOOM_MAX = 2.25;
+const BLUEPRINT_ZOOM_STEP = 0.15;
 
 function normalizeStatus(status) {
     return status === 'free' ? 'available' : (status || 'available');
@@ -121,6 +124,8 @@ class BlueprintFloorMap {
         this.mergeForm = root.querySelector('[data-blueprint-merge-form]');
         this.uploadForm = root.querySelector('[data-blueprint-upload-form]');
         this.uploadInput = root.querySelector('[data-blueprint-upload-input]');
+        this.zoomLabel = root.querySelector('[data-blueprint-zoom-label]');
+        this.apiTables = root.dataset.apiTables;
         this.apiStatus = root.dataset.apiStatus;
         this.apiMergeGroups = root.dataset.apiMergeGroups;
         this.apiPlace = root.dataset.apiPlace;
@@ -128,6 +133,7 @@ class BlueprintFloorMap {
         this.apiDelete = root.dataset.apiDelete;
         this.bookingsUrl = root.dataset.bookingsUrl || '#';
         this.editMode = root.dataset.editMode === 'true';
+        this.operationsMode = root.dataset.operationsMode === 'true';
         this.tables = readJson(root, '[data-blueprint-tables-json]', []).map((table) => this.normalizeTable(table));
         this.groups = readJson(root, '[data-blueprint-groups-json]', []).map(normalizeGroup)
             .filter((group) => group.table_ids.length > 1);
@@ -138,6 +144,13 @@ class BlueprintFloorMap {
         this.selectedIds = new Set();
         this.pendingMarker = null;
         this.pendingMoves = new Map();
+        this.resizeFrame = null;
+        this.resizeObserver = null;
+        this.lastOperationsFit = null;
+        this.blueprintZoom = 1;
+        this.blueprintFitScale = 1;
+        this.serverRefreshTimer = null;
+        this.refreshingTables = false;
         this.suppressClickForTable = null;
         this.operationsHighlightIds = new Set();
         this.operationsLinkedTableId = null;
@@ -207,7 +220,24 @@ class BlueprintFloorMap {
             }
         });
 
-        this.blueprint?.addEventListener('load', () => this.render());
+        this.blueprint?.addEventListener('load', () => this.scheduleRender());
+
+        if (typeof ResizeObserver !== 'undefined' && this.mapScroll) {
+            this.resizeObserver = new ResizeObserver(() => this.scheduleRender());
+            this.resizeObserver.observe(this.mapScroll);
+            if (this.blueprint) {
+                this.resizeObserver.observe(this.blueprint);
+            }
+        }
+
+        window.addEventListener('resize', () => this.scheduleRender(), { passive: true });
+        window.addEventListener('keydown', (event) => {
+            if (!this.operationsMode || event.key !== 'Escape') return;
+            if (!this.selectedTableId && !this.selectedGroupId) return;
+
+            event.preventDefault();
+            this.closePanelSelection();
+        });
     }
 
     bindMarker(marker) {
@@ -253,6 +283,21 @@ class BlueprintFloorMap {
             return;
         }
 
+        if (action === 'zoom-out') {
+            this.setBlueprintZoom(this.blueprintZoom - BLUEPRINT_ZOOM_STEP);
+            return;
+        }
+
+        if (action === 'zoom-in') {
+            this.setBlueprintZoom(this.blueprintZoom + BLUEPRINT_ZOOM_STEP);
+            return;
+        }
+
+        if (action === 'zoom-fit') {
+            this.setBlueprintZoom(1);
+            return;
+        }
+
         if (action === 'start-merge') {
             this.startMergeSelection();
             return;
@@ -294,6 +339,82 @@ class BlueprintFloorMap {
         this.operationsHighlightIds = new Set(ids.map((id) => Number(id)).filter(Boolean));
         this.operationsLinkedTableId = null;
         this.renderMarkers();
+    }
+
+    scheduleServerRefresh() {
+        if (!this.apiTables) return;
+
+        if (this.serverRefreshTimer) {
+            clearTimeout(this.serverRefreshTimer);
+        }
+
+        this.serverRefreshTimer = window.setTimeout(() => {
+            this.serverRefreshTimer = null;
+            this.refreshFromServer();
+        }, 80);
+    }
+
+    async refreshFromServer() {
+        if (!this.apiTables || this.refreshingTables) return;
+
+        this.refreshingTables = true;
+
+        try {
+            const { data } = await axios.get(this.apiTables, {
+                headers: { Accept: 'application/json' },
+            });
+            this.applyPlannerPayload(data);
+        } catch (error) {
+            console.warn('Could not refresh floor map state', error);
+        } finally {
+            this.refreshingTables = false;
+        }
+    }
+
+    applyPlannerPayload(payload = {}) {
+        const planner = payload?.planner || payload;
+        const rows = Array.isArray(planner?.plannerTables) ? planner.plannerTables : [];
+
+        if (rows.length > 0) {
+            const canvas = planner?.plannerCanvas || {};
+            const canvasWidth = finiteNumber(canvas.width, 100);
+            const canvasHeight = finiteNumber(canvas.height, 100);
+            const existingById = new Map(this.tables.map((table) => [Number(table.id), table]));
+
+            this.tables = rows.map((row) => {
+                const existing = existingById.get(Number(row.id));
+                const fallbackX = canvasWidth > 0 ? clamp((finiteNumber(row.x, 0) / canvasWidth) * 100, 0, 100) : 50;
+                const fallbackY = canvasHeight > 0 ? clamp((finiteNumber(row.y, 0) / canvasHeight) * 100, 0, 100) : 50;
+
+                return this.normalizeTable({
+                    ...(existing || {}),
+                    id: Number(row.id),
+                    label: String(row.label || existing?.label || ''),
+                    capacity: Number(row.capacity || existing?.capacity || 1),
+                    status: normalizeStatus(row.status || existing?.status),
+                    x: existing ? existing.x : fallbackX,
+                    y: existing ? existing.y : fallbackY,
+                    savedX: existing ? existing.savedX : fallbackX,
+                    savedY: existing ? existing.savedY : fallbackY,
+                    booking: row.booking || null,
+                    guest: existing?.guest || null,
+                    furniture_type: existing?.furniture_type || row.shape || 'standard',
+                    merge_group: existing?.merge_group || 'default',
+                });
+            });
+        }
+
+        if (Array.isArray(planner?.mergeGroups)) {
+            this.groups = planner.mergeGroups.map(normalizeGroup)
+                .filter((group) => group.table_ids.length > 1);
+        }
+
+        if (this.selectedTableId && !this.table(this.selectedTableId)) {
+            this.selectedTableId = null;
+            this.selectedGroupId = null;
+        }
+
+        this.render();
     }
 
     nextTableLabel() {
@@ -602,7 +723,116 @@ class BlueprintFloorMap {
         return this.mergeSetIsConnected([...this.selectedIds, tableId]);
     }
 
+    scheduleRender() {
+        if (this.resizeFrame) {
+            cancelAnimationFrame(this.resizeFrame);
+        }
+
+        this.resizeFrame = requestAnimationFrame(() => {
+            this.resizeFrame = null;
+            this.render();
+        });
+    }
+
+    mapAvailableSize() {
+        if (!this.mapScroll) return null;
+
+        const styles = window.getComputedStyle(this.mapScroll);
+        const availableWidth = this.mapScroll.clientWidth
+            - finiteNumber(parseFloat(styles.paddingLeft), 0)
+            - finiteNumber(parseFloat(styles.paddingRight), 0);
+        const availableHeight = this.mapScroll.clientHeight
+            - finiteNumber(parseFloat(styles.paddingTop), 0)
+            - finiteNumber(parseFloat(styles.paddingBottom), 0);
+
+        if (availableWidth <= 0 || availableHeight <= 0) return null;
+
+        return {
+            width: availableWidth,
+            height: availableHeight,
+        };
+    }
+
+    updateZoomControls() {
+        if (!this.editMode) return;
+
+        const renderedPercent = Math.max(1, Math.round(this.blueprintFitScale * this.blueprintZoom * 100));
+        if (this.zoomLabel) {
+            this.zoomLabel.textContent = `${renderedPercent}%`;
+        }
+
+        this.root.querySelectorAll('[data-blueprint-action="zoom-out"]').forEach((button) => {
+            button.disabled = this.blueprintZoom <= BLUEPRINT_ZOOM_MIN + 0.001;
+        });
+        this.root.querySelectorAll('[data-blueprint-action="zoom-in"]').forEach((button) => {
+            button.disabled = this.blueprintZoom >= BLUEPRINT_ZOOM_MAX - 0.001;
+        });
+        this.root.querySelectorAll('[data-blueprint-action="zoom-fit"]').forEach((button) => {
+            button.disabled = Math.abs(this.blueprintZoom - 1) < 0.001;
+        });
+    }
+
+    setBlueprintZoom(zoom) {
+        if (!this.editMode) return;
+
+        this.blueprintZoom = clamp(zoom, BLUEPRINT_ZOOM_MIN, BLUEPRINT_ZOOM_MAX);
+        this.lastOperationsFit = null;
+        this.fitBlueprintStage({ preserveCenter: true });
+        this.renderMarkers();
+        this.renderGroups();
+        this.updateZoomControls();
+    }
+
+    fitBlueprintStage(options = {}) {
+        if (!this.mapScroll || !this.stage || !this.blueprint) return;
+
+        const naturalWidth = this.blueprint.naturalWidth || 0;
+        const naturalHeight = this.blueprint.naturalHeight || 0;
+        if (naturalWidth <= 0 || naturalHeight <= 0) return;
+
+        const available = this.mapAvailableSize();
+        if (!available) return;
+
+        const fitScale = Math.min(available.width / naturalWidth, available.height / naturalHeight);
+        const zoom = this.editMode ? this.blueprintZoom : 1;
+        const scale = fitScale * zoom;
+        const fittedWidth = Math.max(1, naturalWidth * scale);
+        const fittedHeight = Math.max(1, naturalHeight * scale);
+        const nextFit = `${this.editMode ? 'edit' : 'ops'}:${fittedWidth.toFixed(2)}x${fittedHeight.toFixed(2)}:${zoom.toFixed(3)}`;
+
+        this.blueprintFitScale = fitScale;
+        if (this.lastOperationsFit === nextFit) {
+            this.updateZoomControls();
+            return;
+        }
+
+        const oldWidth = this.stage.offsetWidth || 0;
+        const oldHeight = this.stage.offsetHeight || 0;
+        const oldCenterX = oldWidth > this.mapScroll.clientWidth
+            ? (this.mapScroll.scrollLeft + (this.mapScroll.clientWidth / 2)) / oldWidth
+            : 0.5;
+        const oldCenterY = oldHeight > this.mapScroll.clientHeight
+            ? (this.mapScroll.scrollTop + (this.mapScroll.clientHeight / 2)) / oldHeight
+            : 0.5;
+
+        this.lastOperationsFit = nextFit;
+        this.stage.style.width = `${fittedWidth}px`;
+        this.stage.style.height = `${fittedHeight}px`;
+        this.blueprint.style.width = `${fittedWidth}px`;
+        this.blueprint.style.height = `${fittedHeight}px`;
+        this.blueprint.style.maxWidth = 'none';
+        this.blueprint.style.maxHeight = 'none';
+
+        if (options.preserveCenter) {
+            this.mapScroll.scrollLeft = Math.max(0, (fittedWidth * oldCenterX) - (this.mapScroll.clientWidth / 2));
+            this.mapScroll.scrollTop = Math.max(0, (fittedHeight * oldCenterY) - (this.mapScroll.clientHeight / 2));
+        }
+
+        this.updateZoomControls();
+    }
+
     render() {
+        this.fitBlueprintStage();
         this.renderMarkers();
         this.renderGroups();
         this.renderControls();
@@ -787,15 +1017,17 @@ class BlueprintFloorMap {
             if (this.panel) {
                 this.panel.hidden = true;
                 this.panel.innerHTML = '';
+                this.resetOperationsPopover();
             }
             this.body?.classList.remove('has-panel');
             return;
         }
 
         this.panel.hidden = false;
-        this.body?.classList.add('has-panel');
+        this.body?.classList.toggle('has-panel', !this.operationsMode);
         this.panel.innerHTML = this.editMode ? this.editPanelHtml(table) : this.tablePanelHtml(table);
         this.bindPanelActions([table.id]);
+        this.positionOperationsPopover([table.id]);
     }
 
     renderGroupPanel(group) {
@@ -809,7 +1041,24 @@ class BlueprintFloorMap {
             : 'Walk-in group';
 
         this.panel.hidden = false;
-        this.body?.classList.add('has-panel');
+        this.body?.classList.toggle('has-panel', !this.operationsMode);
+        const statusSummary = this.operationsMode
+            ? `
+                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <span class="bfm-field-label">Status</span>
+                    <p class="text-sm font-semibold text-slate-800">Merged service group</p>
+                </div>
+            `
+            : '';
+        const actions = `
+            ${this.groupActionsHtml(tables)}
+            ${group.booking_ref ? `<a href="${this.bookingsUrl}?search=${encodeURIComponent(group.booking_ref)}" class="bfm-action">View Booking</a>` : ''}
+            ${!this.operationsMode ? `
+                <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="unmerge">
+                    Unmerge
+                </button>
+            ` : ''}
+        `;
         this.panel.innerHTML = `
             <div class="grid gap-3 p-4">
                 <div class="flex items-start justify-between gap-3">
@@ -826,6 +1075,7 @@ class BlueprintFloorMap {
                     <span class="bfm-field-label">Booking</span>
                     <p class="text-sm font-semibold text-slate-800">${bookingText}</p>
                 </div>
+                ${statusSummary}
 
                 <div class="rounded-lg border border-slate-200 bg-white p-3">
                     <span class="bfm-field-label">Tables included</span>
@@ -833,31 +1083,131 @@ class BlueprintFloorMap {
                 </div>
 
                 <div class="grid grid-cols-2 gap-2">
-                    <a href="${this.bookingsUrl}" class="bfm-action">Assign Booking</a>
-                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="seat-waitlist" data-panel-table-id="${tables[0]?.id || ''}">
-                        Seat Waitlist Guest
-                    </button>
-                    ${group.booking_ref ? `<a href="${this.bookingsUrl}?search=${encodeURIComponent(group.booking_ref)}" class="bfm-action">View Booking</a>` : ''}
-                    ${this.statusButton('available', 'Mark Free')}
-                    ${this.statusButton('reserved', 'Mark Reserved')}
-                    ${this.statusButton('occupied', 'Mark Occupied')}
-                    ${this.statusButton('cleaning', 'Mark Cleaning')}
-                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="unmerge">
-                        Unmerge
-                    </button>
+                    ${actions}
                 </div>
             </div>
         `;
         this.bindPanelActions(tables.map((table) => table.id), group.id);
+        this.positionOperationsPopover(tables.map((table) => table.id));
+    }
+
+    positionOperationsPopover(tableIds = []) {
+        if (!this.operationsMode || !this.panel || this.panel.hidden) return;
+
+        const anchorRect = this.anchorRectForTables(tableIds);
+        if (!anchorRect) {
+            this.resetOperationsPopover();
+            return;
+        }
+
+        this.panel.classList.add('is-popover');
+        this.panel.style.removeProperty('bottom');
+        this.panel.style.removeProperty('right');
+
+        const viewport = window.visualViewport || window;
+        const viewportWidth = Number(viewport.width || window.innerWidth || document.documentElement.clientWidth || 0);
+        const viewportHeight = Number(viewport.height || window.innerHeight || document.documentElement.clientHeight || 0);
+        const viewportLeft = Number(viewport.offsetLeft || 0);
+        const viewportTop = Number(viewport.offsetTop || 0);
+        const fallbackBounds = {
+            left: viewportLeft,
+            top: viewportTop,
+            right: viewportLeft + viewportWidth,
+            bottom: viewportTop + viewportHeight,
+            width: viewportWidth,
+            height: viewportHeight,
+        };
+        const mapBounds = this.mapScroll?.getBoundingClientRect() || fallbackBounds;
+        const margin = 14;
+        const gap = 12;
+        const bounds = {
+            left: Math.max(mapBounds.left, fallbackBounds.left),
+            top: Math.max(mapBounds.top, fallbackBounds.top),
+            right: Math.min(mapBounds.right, fallbackBounds.right),
+            bottom: Math.min(mapBounds.bottom, fallbackBounds.bottom),
+        };
+        bounds.width = Math.max(0, bounds.right - bounds.left);
+        bounds.height = Math.max(0, bounds.bottom - bounds.top);
+
+        this.panel.style.setProperty('--bfm-popover-max-height', `${Math.max(220, bounds.height - margin * 2)}px`);
+
+        const panelRect = this.panel.getBoundingClientRect();
+        const panelWidth = Math.min(panelRect.width || 384, Math.max(260, bounds.width - margin * 2));
+        const panelHeight = Math.min(panelRect.height || 360, Math.max(220, bounds.height - margin * 2));
+        const canFitRight = bounds.right - anchorRect.right >= panelWidth + gap + margin;
+        const canFitLeft = anchorRect.left - bounds.left >= panelWidth + gap + margin;
+
+        let placement = 'bottom';
+        let left = anchorRect.left + (anchorRect.width / 2) - (panelWidth / 2);
+        let top = anchorRect.bottom + gap;
+
+        if (canFitRight || canFitLeft) {
+            placement = canFitRight ? 'right' : 'left';
+            left = canFitRight ? anchorRect.right + gap : anchorRect.left - panelWidth - gap;
+            top = anchorRect.top + (anchorRect.height / 2) - (panelHeight / 2);
+        } else if (anchorRect.bottom + gap + panelHeight <= bounds.bottom - margin) {
+            placement = 'bottom';
+            top = anchorRect.bottom + gap;
+        } else {
+            placement = 'top';
+            top = anchorRect.top - panelHeight - gap;
+        }
+
+        left = clamp(left, bounds.left + margin, bounds.right - panelWidth - margin);
+        top = clamp(top, bounds.top + margin, bounds.bottom - panelHeight - margin);
+
+        this.panel.dataset.placement = placement;
+        this.panel.style.setProperty('--bfm-popover-left', `${left}px`);
+        this.panel.style.setProperty('--bfm-popover-top', `${top}px`);
+    }
+
+    anchorRectForTables(tableIds = []) {
+        const rects = tableIds
+            .map((id) => this.root.querySelector(`[data-blueprint-marker][data-table-id="${Number(id)}"]`))
+            .filter(Boolean)
+            .map((marker) => marker.getBoundingClientRect())
+            .filter((rect) => rect.width > 0 && rect.height > 0);
+
+        if (rects.length === 0) return null;
+
+        const left = Math.min(...rects.map((rect) => rect.left));
+        const top = Math.min(...rects.map((rect) => rect.top));
+        const right = Math.max(...rects.map((rect) => rect.right));
+        const bottom = Math.max(...rects.map((rect) => rect.bottom));
+
+        return {
+            left,
+            top,
+            right,
+            bottom,
+            width: right - left,
+            height: bottom - top,
+        };
+    }
+
+    resetOperationsPopover() {
+        if (!this.panel) return;
+
+        this.panel.classList.remove('is-popover');
+        this.panel.removeAttribute('data-placement');
+        this.panel.style.removeProperty('--bfm-popover-left');
+        this.panel.style.removeProperty('--bfm-popover-top');
+        this.panel.style.removeProperty('--bfm-popover-max-height');
     }
 
     tablePanelHtml(table) {
         const statusClass = STATUS_CLASSES[normalizeStatus(table.status)] || STATUS_CLASSES.available;
         const booking = table.booking;
-        const bookingText = booking
-            ? `${escapeHtml(booking.guest)} - ${escapeHtml(booking.ref)} - ${Number(booking.party || 1)} guests`
-            : 'No assigned booking';
         const guest = booking?.guest || table.guest?.name || (normalizeStatus(table.status) === 'occupied' ? 'Walk-in / current party' : 'No current guest');
+        const actions = `
+            ${this.tableActionsHtml(table)}
+            ${booking ? `<a href="${this.bookingsUrl}?search=${encodeURIComponent(booking.ref || '')}" class="bfm-action">View Booking</a>` : ''}
+            ${!this.operationsMode ? `
+                <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-blueprint-action="start-merge">
+                    Merge Tables
+                </button>
+            ` : ''}
+        `;
 
         return `
             <div class="grid gap-3 p-4">
@@ -877,10 +1227,7 @@ class BlueprintFloorMap {
                 </div>
 
                 <div class="grid gap-2">
-                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <span class="bfm-field-label">Assigned booking</span>
-                        <p class="text-sm font-semibold text-slate-800">${bookingText}</p>
-                    </div>
+                    ${this.bookingBannerHtml(table)}
                     <div class="rounded-lg border border-slate-200 bg-white p-3">
                         <span class="bfm-field-label">Current guest</span>
                         <p class="text-sm font-semibold text-slate-800">${escapeHtml(guest)}</p>
@@ -888,18 +1235,7 @@ class BlueprintFloorMap {
                 </div>
 
                 <div class="grid grid-cols-2 gap-2">
-                    <a href="${this.bookingsUrl}" class="bfm-action">Assign Booking</a>
-                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="seat-waitlist" data-panel-table-id="${Number(table.id)}">
-                        Seat Waitlist Guest
-                    </button>
-                    ${booking ? `<a href="${this.bookingsUrl}?search=${encodeURIComponent(booking.ref || '')}" class="bfm-action">View Booking</a>` : ''}
-                    ${this.statusButton('available', 'Mark Free', table)}
-                    ${this.statusButton('reserved', 'Mark Reserved', table)}
-                    ${this.statusButton('occupied', 'Mark Occupied', table)}
-                    ${this.statusButton('cleaning', 'Mark Cleaning', table)}
-                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-blueprint-action="start-merge">
-                        Merge Tables
-                    </button>
+                    ${actions}
                 </div>
             </div>
         `;
@@ -961,10 +1297,132 @@ class BlueprintFloorMap {
         )).join('');
     }
 
-    statusButton(status, label, table = null) {
-        const disabled = table && normalizeStatus(table.status) === status ? 'disabled' : '';
+    tableActionsHtml(table) {
+        const status = normalizeStatus(table.status);
+        const hasBooking = this.tableHasBooking(table);
 
-        return `<button type="button" class="bfm-action" data-panel-status="${status}" ${disabled}>${label}</button>`;
+        if (status === 'reserved') {
+            return [
+                hasBooking ? this.commandButton('check_in', 'Check in') : '',
+                hasBooking ? this.commandButton('no_show', 'No-show') : '',
+                !hasBooking ? this.commandButton('seat_walk_in', 'Seat walk-in') : '',
+                this.commandButton('release_table', 'Release table'),
+            ].filter(Boolean).join('');
+        }
+
+        if (status === 'occupied') {
+            return [
+                this.commandButton('send_to_cleaning', 'Send to cleaning'),
+                this.commandButton('mark_free', 'Mark free'),
+            ].join('');
+        }
+
+        if (status === 'available') {
+            if (hasBooking) {
+                return this.emptyActionMessage('Online booking attached; seating is blocked.');
+            }
+
+            return [
+                this.commandButton('seat_walk_in', 'Seat walk-in'),
+                `<button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="seat-waitlist" data-panel-table-id="${Number(table.id)}">Seat from queue</button>`,
+            ].join('');
+        }
+
+        if (status === 'cleaning') {
+            return this.commandButton('mark_free', 'Mark free');
+        }
+
+        return this.emptyActionMessage('No staff actions available.');
+    }
+
+    groupActionsHtml(tables) {
+        if (!Array.isArray(tables) || tables.length === 0) {
+            return this.emptyActionMessage('No tables selected.');
+        }
+
+        const statuses = [...new Set(tables.map((table) => normalizeStatus(table.status)))];
+        if (statuses.length !== 1) {
+            return this.emptyActionMessage('Select one status group at a time.');
+        }
+
+        const status = statuses[0];
+        const anyBooking = tables.some((table) => this.tableHasBooking(table));
+        const allHaveBookings = tables.every((table) => this.tableHasBooking(table));
+
+        if (status === 'reserved') {
+            return [
+                allHaveBookings ? this.commandButton('check_in', 'Check in') : '',
+                allHaveBookings ? this.commandButton('no_show', 'No-show') : '',
+                !anyBooking ? this.commandButton('seat_walk_in', 'Seat walk-in') : '',
+                this.commandButton('release_table', 'Release table'),
+            ].filter(Boolean).join('');
+        }
+
+        if (status === 'occupied') {
+            return [
+                this.commandButton('send_to_cleaning', 'Send to cleaning'),
+                this.commandButton('mark_free', 'Mark free'),
+            ].join('');
+        }
+
+        if (status === 'available') {
+            if (anyBooking) {
+                return this.emptyActionMessage('Online booking attached; seating is blocked.');
+            }
+
+            return [
+                this.commandButton('seat_walk_in', 'Seat walk-in'),
+                `<button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="seat-waitlist" data-panel-table-id="${tables[0]?.id || ''}">Seat from queue</button>`,
+            ].join('');
+        }
+
+        if (status === 'cleaning') {
+            return this.commandButton('mark_free', 'Mark free');
+        }
+
+        return this.emptyActionMessage('No staff actions available.');
+    }
+
+    commandButton(command, label) {
+        return `<button type="button" class="bfm-action" data-panel-command="${command}">${label}</button>`;
+    }
+
+    emptyActionMessage(message) {
+        return `<p class="col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">${escapeHtml(message)}</p>`;
+    }
+
+    tableHasBooking(table) {
+        return Number(table?.booking_id || 0) > 0;
+    }
+
+    bookingBannerHtml(table) {
+        const booking = table.booking;
+        if (booking) {
+            const parts = [
+                booking.guest || 'Guest',
+                booking.booked_at || booking.time || null,
+                `${Number(booking.party || 1)} pax`,
+            ].filter(Boolean);
+
+            return `
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <span class="bfm-field-label text-amber-900">Online booking</span>
+                    <p class="text-sm font-semibold text-amber-950">${escapeHtml(parts.join(' - '))}</p>
+                    ${booking.ref ? `<p class="mt-1 font-mono text-xs text-amber-800">${escapeHtml(booking.ref)}</p>` : ''}
+                </div>
+            `;
+        }
+
+        const fallback = normalizeStatus(table.status) === 'occupied'
+            ? (table.guest?.name || 'Walk-in')
+            : 'No reservation';
+
+        return `
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <span class="bfm-field-label">Booking</span>
+                <p class="text-sm font-semibold text-slate-700">${escapeHtml(fallback)}</p>
+            </div>
+        `;
     }
 
     bindPanelActions(tableIds, groupId = null) {
@@ -972,9 +1430,7 @@ class BlueprintFloorMap {
             button.addEventListener('click', () => {
                 const action = button.dataset.panelAction;
                 if (action === 'close') {
-                    this.selectedTableId = null;
-                    this.selectedGroupId = null;
-                    this.render();
+                    this.closePanelSelection();
                 }
                 if (action === 'unmerge' && groupId) {
                     this.unmergeGroup(groupId);
@@ -996,16 +1452,37 @@ class BlueprintFloorMap {
                         return;
                     }
                     window.Livewire.dispatch('floor-map-seat-waitlist-guest', { tableId });
-                    this.selectedTableId = tableId;
-                    this.selectedGroupId = null;
-                    this.render();
+                    if (this.operationsMode) {
+                        this.closePanelSelection();
+                    } else {
+                        this.selectedTableId = tableId;
+                        this.selectedGroupId = null;
+                        this.render();
+                    }
                 }
             });
+        });
+
+        this.panel.querySelectorAll('[data-panel-command]').forEach((button) => {
+            button.addEventListener('click', () => this.runCommand(tableIds, button.dataset.panelCommand));
         });
 
         this.panel.querySelectorAll('[data-panel-status]').forEach((button) => {
             button.addEventListener('click', () => this.updateStatus(tableIds, button.dataset.panelStatus));
         });
+    }
+
+    closePanelSelection() {
+        this.selectedTableId = null;
+        this.selectedGroupId = null;
+        this.body?.classList.remove('has-panel');
+        if (this.panel) {
+            this.panel.hidden = true;
+            this.panel.innerHTML = '';
+            this.resetOperationsPopover();
+        }
+        this.renderMarkers();
+        this.renderGroups();
     }
 
     groupLabel(group) {
@@ -1328,13 +1805,15 @@ class BlueprintFloorMap {
         if (!this.apiStatus || !status || tableIds.length === 0) return;
 
         try {
+            let latestPayload = null;
             for (const id of tableIds) {
-                await axios.post(this.apiStatus, {
+                const { data } = await axios.post(this.apiStatus, {
                     table_id: id,
                     status,
                 }, {
                     headers: { Accept: 'application/json' },
                 });
+                latestPayload = data;
                 const table = this.table(id);
                 if (table) {
                     table.status = normalizeStatus(status);
@@ -1345,14 +1824,74 @@ class BlueprintFloorMap {
                 }
             }
 
+            if (latestPayload?.planner) {
+                this.applyPlannerPayload(latestPayload.planner);
+            }
+            if (this.operationsMode) {
+                this.selectedTableId = null;
+                this.selectedGroupId = null;
+                this.body?.classList.remove('has-panel');
+            }
             this.render();
             if (typeof window.Livewire?.dispatch === 'function') {
                 window.Livewire.dispatch('tables-refresh');
+                window.Livewire.dispatch('table-updated');
+                window.Livewire.dispatch('queue-updated');
+                window.Livewire.dispatch('eta-recalculated');
             }
             notify('success', tableIds.length > 1 ? 'Merged tables updated.' : `Table marked ${statusLabel(status).toLowerCase()}.`);
         } catch (error) {
             notify('error', firstError(error, 'Could not update table status'));
         }
+    }
+
+    async runCommand(tableIds, command) {
+        if (!this.apiStatus || !command || tableIds.length === 0) return;
+
+        try {
+            let latestPayload = null;
+            for (const id of tableIds) {
+                const { data } = await axios.post(this.apiStatus, {
+                    table_id: id,
+                    action: command,
+                }, {
+                    headers: { Accept: 'application/json' },
+                });
+                latestPayload = data;
+            }
+
+            if (latestPayload?.planner) {
+                this.applyPlannerPayload(latestPayload.planner);
+            }
+            if (this.operationsMode) {
+                this.selectedTableId = null;
+                this.selectedGroupId = null;
+                this.body?.classList.remove('has-panel');
+            }
+            this.render();
+            if (typeof window.Livewire?.dispatch === 'function') {
+                window.Livewire.dispatch('tables-refresh');
+                window.Livewire.dispatch('table-updated');
+                window.Livewire.dispatch('queue-updated');
+                window.Livewire.dispatch('eta-recalculated');
+            }
+            notify('success', this.commandSuccessMessage(command, tableIds.length));
+        } catch (error) {
+            notify('error', firstError(error, 'Could not update table'));
+        }
+    }
+
+    commandSuccessMessage(command, count) {
+        const prefix = count > 1 ? 'Tables' : 'Table';
+
+        return {
+            check_in: count > 1 ? 'Guests checked in.' : 'Guest checked in.',
+            no_show: count > 1 ? 'No-shows marked.' : 'No-show marked.',
+            seat_walk_in: count > 1 ? 'Walk-ins seated.' : 'Walk-in seated.',
+            send_to_cleaning: `${prefix} sent to cleaning.`,
+            mark_free: `${prefix} marked free.`,
+            release_table: `${prefix} released.`,
+        }[command] || `${prefix} updated.`;
     }
 }
 
@@ -1370,6 +1909,14 @@ document.addEventListener('livewire:init', () => {
     window.Livewire.on('operations-highlight-compatible-tables', (payload) => {
         document.querySelectorAll('[data-blueprint-floor-map]').forEach((root) => {
             root.blueprintFloorMap?.setOperationsHighlight(payload);
+        });
+    });
+
+    ['tables-refresh', 'table-updated', 'guest-seated', 'reservation-updated'].forEach((eventName) => {
+        window.Livewire.on(eventName, () => {
+            document.querySelectorAll('[data-blueprint-floor-map]').forEach((root) => {
+                root.blueprintFloorMap?.scheduleServerRefresh();
+            });
         });
     });
 });

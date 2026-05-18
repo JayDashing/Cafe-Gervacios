@@ -4,7 +4,6 @@ namespace App\Livewire\Admin;
 
 use App\Models\Table;
 use App\Services\TableService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -18,6 +17,7 @@ class TableManagementPanel extends Component
     public string $search = '';
 
     #[On('tables-refresh')]
+    #[On('table-updated')]
     public function refreshFromTables(): void
     {
         $this->refreshVersion++;
@@ -25,35 +25,45 @@ class TableManagementPanel extends Component
 
     public function markOccupied(int $tableId): void
     {
-        $this->applyStatus($tableId, 'occupied');
-    }
-
-    public function markFree(int $tableId): void
-    {
-        $this->applyStatus($tableId, 'available');
-    }
-
-    public function markReserved(int $tableId): void
-    {
-        $this->applyStatus($tableId, 'reserved');
-    }
-
-    public function markCleaning(int $tableId): void
-    {
         $table = Table::query()->findOrFail($tableId);
         Gate::authorize('update', $table);
 
-        if ($table->status !== 'occupied') {
-            $this->dispatch('notify', type: 'info', message: 'Only occupied tables can be moved to cleaning.');
+        try {
+            if ($table->status === Table::STATUS_RESERVED && $table->booking_id !== null) {
+                app(TableService::class)->checkIn($tableId);
+                $message = 'Guest checked in.';
+            } else {
+                app(TableService::class)->seatWalkIn($tableId);
+                $message = 'Walk-in seated.';
+            }
+        } catch (\InvalidArgumentException $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+
+            return;
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+            $this->dispatch('notify', type: 'error', message: 'Invalid table status. Please refresh and try again.');
 
             return;
         }
 
-        app(TableService::class)->release($tableId);
-        Cache::forget('tables.venue.1');
-        $this->refreshVersion++;
-        $this->dispatch('tables-refresh');
-        $this->dispatch('notify', type: 'success', message: 'Table moved to cleaning.');
+        $this->dispatchOperationsRefresh();
+        $this->dispatch('notify', type: 'success', message: $message);
+    }
+
+    public function markFree(int $tableId): void
+    {
+        $this->performTableAction($tableId, 'markFree', 'Table marked free.');
+    }
+
+    public function markCleaning(int $tableId): void
+    {
+        $this->performTableAction($tableId, 'sendToCleaning', 'Table moved to cleaning.');
+    }
+
+    public function releaseTable(int $tableId): void
+    {
+        $this->performTableAction($tableId, 'releaseTable', 'Table released.');
     }
 
     public function setStatusFilter(string $status): void
@@ -106,63 +116,39 @@ class TableManagementPanel extends Component
         ]);
     }
 
-    private function applyStatus(int $tableId, string $status): void
+    private function performTableAction(int $tableId, string $method, string $successMessage): void
     {
         $table = Table::query()->findOrFail($tableId);
         Gate::authorize('update', $table);
 
-        if (! in_array($status, ['available', 'occupied', 'reserved'], true)) {
+        if (! in_array($method, ['markFree', 'sendToCleaning', 'releaseTable'], true)) {
             return;
         }
 
-        if ($table->status === $status) {
-            $this->dispatch('notify', type: 'info', message: 'Table is already '.$this->statusLabel($status).'.');
+        try {
+            app(TableService::class)->{$method}($tableId);
+        } catch (\InvalidArgumentException $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
 
             return;
-        }
-
-        if ($status === 'available' && $table->status === 'occupied') {
-            $this->dispatch('notify', type: 'error', message: 'Occupied tables must be checked out before they can be marked free.');
-
-            return;
-        }
-
-        if ($status === 'occupied' && $table->status === 'cleaning') {
-            $this->dispatch('notify', type: 'error', message: 'Mark the table ready before seating guests again.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+            $this->dispatch('notify', type: 'error', message: 'Invalid table status. Please refresh and try again.');
 
             return;
         }
 
-        if ($status === 'reserved' && $table->status !== 'available') {
-            $this->dispatch('notify', type: 'error', message: 'Only free tables can be marked reserved.');
+        $this->dispatchOperationsRefresh();
+        $this->dispatch('notify', type: 'success', message: $successMessage);
+    }
 
-            return;
-        }
-
-        app(TableService::class)->override($tableId, $status);
-        Cache::forget('tables.venue.1');
+    private function dispatchOperationsRefresh(): void
+    {
         $this->refreshVersion++;
         $this->dispatch('tables-refresh');
-        $this->dispatch('notify', type: 'success', message: $this->statusMessage($status));
+        $this->dispatch('table-updated');
+        $this->dispatch('queue-updated');
+        $this->dispatch('eta-recalculated');
     }
 
-    private function statusMessage(string $status): string
-    {
-        return match ($status) {
-            'available' => 'Table marked free.',
-            'occupied' => 'Table marked occupied.',
-            'reserved' => 'Table marked reserved.',
-            default => 'Table updated.',
-        };
-    }
-
-    private function statusLabel(string $status): string
-    {
-        return match ($status) {
-            'available' => 'free',
-            'occupied' => 'occupied',
-            'reserved' => 'reserved',
-            default => 'updated',
-        };
-    }
 }

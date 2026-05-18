@@ -354,10 +354,15 @@
                 <span class="admin-sidebar-nav-text">Reports & Analytics</span>
             </a>
 
-            @php [$c] = $item('admin.system-logs'); @endphp
-            <a href="{{ route('admin.system-logs') }}" class="{{ $c }}" title="System Logs" aria-current="{{ request()->routeIs('admin.system-logs') ? 'page' : 'false' }}">
-                <i class="fa-solid fa-clipboard-list tc-nav-icon"></i>
-                <span class="admin-sidebar-nav-text">System Logs</span>
+            @php
+                $automationActive = request()->routeIs('admin.settings')
+                    && request()->query('section') === 'automation'
+                    && ! request()->has('modal');
+                $automationClass = $automationActive ? 'tc-nav-link tc-nav-active' : 'tc-nav-link';
+            @endphp
+            <a href="{{ route('admin.settings', ['section' => 'automation']) }}#settings-unified" class="{{ $automationClass }}" title="Automation" aria-current="{{ $automationActive ? 'page' : 'false' }}">
+                <i class="fa-solid fa-robot tc-nav-icon"></i>
+                <span class="admin-sidebar-nav-text">Automation</span>
             </a>
         @endif
 
@@ -365,7 +370,8 @@
 
         @if ($isAdminUser)
             @php
-                $settingsActive = request()->routeIs('admin.settings', 'admin.2fa.*', 'admin.password.change');
+                $settingsActive = (request()->routeIs('admin.settings') && request()->query('section') !== 'automation')
+                    || request()->routeIs('admin.2fa.*', 'admin.password.change', 'admin.system-logs');
                 $settingsBase = route('admin.settings');
                 $settingsModalUrl = fn(string $modal) => route('admin.settings', ['modal' => $modal]);
             @endphp
@@ -385,8 +391,8 @@
                 </div>
                 <div id="admin-settings-jump" class="mt-0.5 ml-1 tc-sidebar-subnav-line pl-3">
                     <ul id="admin-settings-jump-list" class="space-y-0.5 pb-1" role="list">
-                        <li><a href="{{ $settingsModalUrl('devices') }}" data-modal="devices"
-                                class="settings-jump-link">Automation</a></li>
+                        <li><a href="{{ route('admin.system-logs') }}"
+                                class="settings-jump-link {{ request()->routeIs('admin.system-logs') ? 'tc-settings-jump-active' : '' }}">System Logs</a></li>
                         <li><a href="{{ $settingsModalUrl('paymongo') }}" data-modal="paymongo"
                                 class="settings-jump-link">Online payments</a></li>
                         <li><a href="{{ $settingsModalUrl('philsms') }}" data-modal="philsms"

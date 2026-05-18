@@ -10,7 +10,8 @@ use RuntimeException;
 
 class SmsService
 {
-    private const SEND_ENDPOINT = 'https://app.philsms.com/api/v3/sms/send';
+    private const API_BASE = 'https://dashboard.philsms.com/api/v3';
+    private const SEND_ENDPOINT = self::API_BASE.'/sms/send';
 
     /**
      * Send one plain-text SMS through PhilSMS.
@@ -97,7 +98,7 @@ class SmsService
             $response = Http::acceptJson()
                 ->withToken($apiKey)
                 ->timeout(20)
-                ->get('https://app.philsms.com/api/v3/sms');
+                ->get(self::API_BASE.'/sms');
 
             if (! $response->successful()) {
                 return null;

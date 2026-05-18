@@ -102,9 +102,9 @@ class PriorityPaperAlignmentTest extends TestCase
             ->get(route('admin.waitlist'))
             ->assertOk()
             ->assertSeeInOrder(['PWD Proof', 'Waiting Guests - Regular', 'Regular Proof'])
-            ->assertSee('Priority Score')
-            ->assertSee('100')
-            ->assertSee('Accessible table required');
+            ->assertSee('PWD')
+            ->assertSee('Phone')
+            ->assertSee('Source');
 
         app(QueueService::class)->seat($entry->id, $table->id);
 

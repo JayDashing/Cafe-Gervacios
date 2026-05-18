@@ -16,5 +16,9 @@ class DatabaseSeeder extends Seeder
             TableSeeder::class,
             // SeatSeeder::class — seats are placed on the admin map (Add seats…) or seed manually when ready.
         ]);
+
+        if (app()->environment('local')) {
+            $this->call(LocalDevelopmentSeeder::class);
+        }
     }
 }

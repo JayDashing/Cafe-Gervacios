@@ -165,6 +165,9 @@ async function refreshSeatMapData(apiSeats) {
     }
     if (typeof window.Livewire !== 'undefined' && typeof window.Livewire.dispatch === 'function') {
         window.Livewire.dispatch('tables-refresh');
+        window.Livewire.dispatch('table-updated');
+        window.Livewire.dispatch('queue-updated');
+        window.Livewire.dispatch('eta-recalculated');
     }
 }
 
@@ -1263,6 +1266,7 @@ function initSeatingLayout() {
                 closeModal();
                 window.showToast?.('success', 'Table marker added');
                 window.Livewire.dispatch('tables-refresh');
+                window.Livewire.dispatch('table-updated');
                 setTimeout(() => window.location.reload(), 600);
             } catch (err) {
                 console.error(err);

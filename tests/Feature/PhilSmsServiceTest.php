@@ -22,7 +22,7 @@ class PhilSmsServiceTest extends TestCase
         Setting::set('philsms_sender_id', 'CafeGV');
 
         Http::fake([
-            'https://app.philsms.com/api/v3/sms/send' => Http::response([
+            'https://dashboard.philsms.com/api/v3/sms/send' => Http::response([
                 'status' => 'success',
                 'data' => ['uid' => 'philsms-123'],
             ]),
@@ -35,7 +35,7 @@ class PhilSmsServiceTest extends TestCase
         $this->assertSame('philsms-123', $result['provider_message_id']);
 
         Http::assertSent(function ($request) {
-            return $request->url() === 'https://app.philsms.com/api/v3/sms/send'
+            return $request->url() === 'https://dashboard.philsms.com/api/v3/sms/send'
                 && $request->method() === 'POST'
                 && $request->hasHeader('Authorization', 'Bearer test-token')
                 && $request->hasHeader('Accept', 'application/json')
@@ -52,7 +52,7 @@ class PhilSmsServiceTest extends TestCase
         Setting::set('philsms_sender_id', 'CafeGV');
 
         Http::fake([
-            'https://app.philsms.com/api/v3/sms/send' => Http::response([
+            'https://dashboard.philsms.com/api/v3/sms/send' => Http::response([
                 'status' => 'success',
                 'data' => ['uid' => 'philsms-log-1'],
             ]),
@@ -68,7 +68,7 @@ class PhilSmsServiceTest extends TestCase
         $this->assertSame('queued', $log->status);
         $this->assertSame('admin_sms_test', $log->template);
         $this->assertSame('philsms-log-1', $log->provider_message_id);
-        $this->assertStringContainsString('PhilSMS is configured correctly', (string) $log->message);
+        $this->assertStringContainsString('PhilSMS works', (string) $log->message);
     }
 
     public function test_notification_service_logs_philsms_failure_for_manual_feedback(): void
@@ -77,7 +77,7 @@ class PhilSmsServiceTest extends TestCase
         Setting::set('philsms_sender_id', 'CafeGV');
 
         Http::fake([
-            'https://app.philsms.com/api/v3/sms/send' => Http::response([
+            'https://dashboard.philsms.com/api/v3/sms/send' => Http::response([
                 'status' => 'error',
                 'message' => 'Invalid sender ID',
             ]),

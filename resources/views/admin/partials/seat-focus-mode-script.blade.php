@@ -23,6 +23,7 @@
             window.dispatchEvent(new Event('resize'));
             if (typeof window.Livewire !== 'undefined' && typeof window.Livewire.dispatch === 'function') {
                 window.Livewire.dispatch('tables-refresh');
+                window.Livewire.dispatch('table-updated');
             }
             setTimeout(function () {
                 window.dispatchEvent(new Event('resize'));

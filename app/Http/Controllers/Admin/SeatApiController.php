@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Seat;
 use App\Models\Table;
 use App\Services\TableService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -152,20 +153,46 @@ class SeatApiController extends Controller
 
     public function plannerStatus(Request $request): JsonResponse
     {
+        if ((string) $request->input('status') === Table::STATUS_RESERVED) {
+            abort(403, 'Staff cannot mark tables reserved from the floor map.');
+        }
+
         $validated = $request->validate([
             'table_id' => ['required', 'integer', 'exists:tables,id'],
-            'status' => ['required', 'string', 'in:available,reserved,occupied,cleaning'],
+            'status' => ['nullable', 'required_without:action', 'string', 'in:'.implode(',', [
+                Table::STATUS_AVAILABLE,
+                Table::STATUS_OCCUPIED,
+                Table::STATUS_CLEANING,
+            ])],
+            'action' => ['nullable', 'required_without:status', 'string', 'in:'.implode(',', [
+                'check_in',
+                'no_show',
+                'seat_walk_in',
+                'send_to_cleaning',
+                'mark_free',
+                'release_table',
+            ])],
         ]);
 
         $table = Table::query()->findOrFail((int) $validated['table_id']);
         Gate::authorize('update', $table);
 
-        $status = (string) $validated['status'];
+        try {
+            if (isset($validated['action']) && $validated['action'] !== null && $validated['action'] !== '') {
+                $this->applyPlannerAction($table, (string) $validated['action']);
+            } else {
+                $this->applyPlannerStatus($table, (string) $validated['status']);
+            }
+        } catch (\InvalidArgumentException $e) {
+            throw ValidationException::withMessages([
+                'status' => [$e->getMessage()],
+            ]);
+        } catch (QueryException $e) {
+            report($e);
 
-        if ($table->status === 'occupied' && $status === 'cleaning') {
-            app(TableService::class)->release($table->id);
-        } else {
-            app(TableService::class)->override($table->id, $status);
+            throw ValidationException::withMessages([
+                'status' => ['Invalid table status. Please refresh and try again.'],
+            ]);
         }
 
         Cache::forget('tables.venue.1');
@@ -174,6 +201,41 @@ class SeatApiController extends Controller
             'ok' => true,
             'planner' => SeatingLayoutController::plannerData(),
         ]);
+    }
+
+    private function applyPlannerAction(Table $table, string $action): void
+    {
+        $service = app(TableService::class);
+
+        match ($action) {
+            'check_in' => $service->checkIn($table->id),
+            'no_show' => $service->noShow($table->id),
+            'seat_walk_in' => $service->seatWalkIn($table->id),
+            'send_to_cleaning' => $service->sendToCleaning($table->id),
+            'mark_free' => $service->markFree($table->id),
+            'release_table' => $service->releaseTable($table->id),
+            default => throw new \InvalidArgumentException('Invalid table action.'),
+        };
+    }
+
+    private function applyPlannerStatus(Table $table, string $status): void
+    {
+        if ($table->status === $status) {
+            return;
+        }
+
+        $service = app(TableService::class);
+
+        match ($status) {
+            Table::STATUS_OCCUPIED => $table->status === Table::STATUS_RESERVED && $table->booking_id !== null
+                ? $service->checkIn($table->id)
+                : $service->seatWalkIn($table->id),
+            Table::STATUS_CLEANING => $service->sendToCleaning($table->id),
+            Table::STATUS_AVAILABLE => $table->status === Table::STATUS_RESERVED
+                ? $service->releaseTable($table->id)
+                : $service->markFree($table->id),
+            default => throw new \InvalidArgumentException('Invalid table status.'),
+        };
     }
 
     public function plannerDelete(Request $request): JsonResponse
@@ -262,6 +324,10 @@ class SeatApiController extends Controller
      */
     public function place(Request $request): JsonResponse
     {
+        if ((string) $request->input('status') === Seat::STATUS_RESERVED) {
+            abort(403, 'Staff cannot mark tables reserved from the floor map.');
+        }
+
         $validated = $request->validate([
             'pos_x' => ['required', 'numeric', 'min:0', 'max:100'],
             'pos_y' => ['required', 'numeric', 'min:0', 'max:100'],
@@ -274,7 +340,7 @@ class SeatApiController extends Controller
             'label' => ['nullable', 'string', 'max:50'],
             'capacity' => ['nullable', 'integer', 'min:1', 'max:99'],
             'furniture_type' => ['nullable', 'string', 'max:32'],
-            'status' => ['nullable', 'string', 'in:free,reserved,occupied'],
+            'status' => ['nullable', 'string', 'in:'.implode(',', Seat::STATUSES)],
         ]);
         $this->assertMarkerInsideBlueprint($validated);
 
@@ -290,19 +356,18 @@ class SeatApiController extends Controller
             }
 
             $capacity = (int) ($validated['capacity'] ?? 1);
+            $seatStatus = isset($validated['status']) && $validated['status'] !== ''
+                ? $validated['status']
+                : Seat::STATUS_FREE;
 
             $table = Table::query()->create([
                 'venue_id' => 1,
                 'label' => $label,
                 'capacity' => $capacity,
-                'status' => 'available',
+                'status' => $this->seatStatusToTableStatus($seatStatus),
                 'shape' => 'rect',
                 'furniture_type' => $furniture,
             ]);
-
-            $seatStatus = isset($validated['status']) && $validated['status'] !== ''
-                ? $validated['status']
-                : 'free';
 
             $seat = Seat::query()->create([
                 'table_id' => $table->id,
@@ -329,9 +394,13 @@ class SeatApiController extends Controller
 
     public function update(Request $request): JsonResponse
     {
+        if ((string) $request->input('status') === Seat::STATUS_RESERVED) {
+            abort(403, 'Staff cannot mark tables reserved from the floor map.');
+        }
+
         $validated = $request->validate([
             'seat_id' => ['required', 'integer', 'exists:seats,id'],
-            'status' => ['nullable', 'string', 'in:free,reserved,occupied'],
+            'status' => ['nullable', 'string', 'in:'.implode(',', Seat::STATUSES)],
             'label' => ['nullable', 'string', 'max:50'],
             'capacity' => ['nullable', 'integer', 'min:1', 'max:99'],
             'furniture_type' => ['nullable', 'string', 'max:32'],
@@ -900,10 +969,10 @@ class SeatApiController extends Controller
     private function seatStatusToTableStatus(string $seatStatus): string
     {
         return match ($seatStatus) {
-            'reserved' => 'reserved',
-            'occupied' => 'occupied',
-            'cleaning' => 'cleaning',
-            default => 'available',
+            Seat::STATUS_RESERVED => Table::STATUS_RESERVED,
+            Seat::STATUS_OCCUPIED => Table::STATUS_OCCUPIED,
+            Seat::STATUS_CLEANING => Table::STATUS_CLEANING,
+            default => Table::STATUS_AVAILABLE,
         };
     }
 

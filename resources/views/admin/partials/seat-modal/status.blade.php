@@ -9,10 +9,6 @@
             <span class="seating-s-dot" aria-hidden="true"></span>
             <span class="seating-s-opt-label">Available</span>
         </div>
-        <div class="seating-s-opt re" data-seat-status="reserved" tabindex="0" role="radio" aria-checked="false">
-            <span class="seating-s-dot" aria-hidden="true"></span>
-            <span class="seating-s-opt-label">Reserved</span>
-        </div>
         <div class="seating-s-opt oc" data-seat-status="occupied" tabindex="0" role="radio" aria-checked="false">
             <span class="seating-s-dot" aria-hidden="true"></span>
             <span class="seating-s-opt-label">Occupied</span>

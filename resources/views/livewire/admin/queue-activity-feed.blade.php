@@ -1,9 +1,9 @@
 <div wire:poll.5s
-    class="tc-dash-side-card flex min-h-0 flex-col rounded-xl border border-panel-stroke bg-panel-surface p-4 shadow-sm shadow-slate-900/5 sm:p-5">
+    class="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
     <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
         <div>
             <h3
-                class="text-[14px] font-semibold tracking-tight text-slate-800 [font-family:var(--font-admin-display)]">
+                class="text-base font-bold tracking-tight text-slate-950 [font-family:var(--font-admin-display)]">
                 Live queue</h3>
             <p class="mt-0.5 text-[12px] font-medium text-slate-500">Last {{ $lookbackHours }}h · updates every 5s</p>
         </div>

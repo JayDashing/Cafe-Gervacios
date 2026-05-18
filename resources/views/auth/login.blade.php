@@ -89,6 +89,23 @@
                         Login to dashboard
                     </button>
                 </form>
+
+                @if (app()->environment('local'))
+                    <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <p class="text-xs font-semibold text-emerald-950">Development-only login</p>
+                        <p class="mt-1 text-xs text-emerald-800">Use this shortcut when testing locally.</p>
+                        <form method="POST" action="{{ route('login.dev') }}" class="mt-3">
+                            @csrf
+                            @if (! empty($redirectValue))
+                                <input type="hidden" name="redirect" value="{{ $redirectValue }}">
+                            @endif
+                            <button type="submit"
+                                class="w-full rounded-lg bg-emerald-700 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2">
+                                Login as local admin
+                            </button>
+                        </form>
+                    </div>
+                @endif
             </div>
 
             {{-- Brand / logo --}}

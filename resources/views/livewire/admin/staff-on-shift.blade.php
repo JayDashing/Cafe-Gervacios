@@ -1,7 +1,7 @@
 <div
-    class="tc-dash-side-card rounded-xl border border-panel-stroke bg-panel-surface p-4 font-sans shadow-sm shadow-slate-900/5 sm:p-5"
+    class="rounded-xl border border-slate-200 bg-white p-4 font-sans sm:p-5"
     wire:poll.15s>
-    <h2 class="text-[15px] font-semibold tracking-tight text-slate-900 [font-family:var(--font-admin-display)]">Staff on
+    <h2 class="text-base font-bold tracking-tight text-slate-950 [font-family:var(--font-admin-display)]">Staff on
         shift</h2>
     <p class="mt-1.5 text-[13px] leading-relaxed text-slate-600">
         People signed in to admin or staff right now (active browser or tablet sessions).

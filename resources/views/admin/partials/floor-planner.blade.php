@@ -173,7 +173,6 @@
                             <label class="fp-field-label" for="fp-new-table-status">Status</label>
                             <select id="fp-new-table-status" class="fp-input" data-add-field="status">
                                 <option value="available">Free</option>
-                                <option value="reserved">Reserved</option>
                                 <option value="occupied">Occupied</option>
                                 <option value="cleaning">Cleaning</option>
                             </select>
@@ -198,7 +197,7 @@
                     </div>
                 </div>
 
-                <div class="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end">
+                <div class="flex flex-col-reverse items-stretch justify-center gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center">
                     <button type="button" class="tc-admin-btn-secondary min-h-10 px-4 py-2 text-sm" data-modal-close>Cancel</button>
                     <button type="submit" class="tc-admin-btn-primary min-h-10 px-4 py-2 text-sm">Add Table</button>
                 </div>

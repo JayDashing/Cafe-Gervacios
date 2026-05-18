@@ -98,12 +98,12 @@ class AnalyticsPaperAlignmentTest extends TestCase
         $this->actingAs($this->user('admin'))
             ->get(route('admin.seating-analytics'))
             ->assertOk()
-            ->assertSee('Total bookings today')
-            ->assertSee('Checked-in bookings')
-            ->assertSee('Seated from queue')
-            ->assertSee('Occupied tables')
-            ->assertSee('Available tables')
-            ->assertSee('Last updated')
+            ->assertSee('Bookings')
+            ->assertSee('Check-ins')
+            ->assertSee('Queue seated')
+            ->assertSee('Occupied')
+            ->assertSee('Free tables')
+            ->assertSee('Updated')
             ->assertSee('No analytics data yet.');
     }
 

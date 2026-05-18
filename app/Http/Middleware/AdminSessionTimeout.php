@@ -25,6 +25,15 @@ class AdminSessionTimeout
             return $next($request);
         }
 
+        if (
+            app()->environment('local')
+            && ((bool) $request->session()->get('admin_remembered_login', false) || Auth::viaRemember())
+        ) {
+            $request->session()->put('admin_last_activity', now());
+
+            return $next($request);
+        }
+
         $lastActivity = $request->session()->get('admin_last_activity');
 
         if ($lastActivity && now()->diffInMinutes($lastActivity) > 30) {

@@ -33,43 +33,37 @@
             @can('update', $table)
                 <div class="grid gap-2">
                     @if ($table->status === 'available')
-                        <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'occupied')"
+                        <button type="button" wire:click="seatWalkIn({{ $table->id }})"
                             wire:loading.attr="disabled"
-                            wire:target="applyStatusFromSelect"
+                            wire:target="seatWalkIn"
                             class="{{ $primaryButton }} bg-rose-600 text-white hover:bg-rose-700">
                             <i class="fa-solid fa-chair" aria-hidden="true"></i>
-                            Seat Guests
+                            Seat Walk-in
                         </button>
-                        <div class="grid gap-2 sm:grid-cols-2">
-                            <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'reserved')"
-                                wire:loading.attr="disabled"
-                                wire:target="applyStatusFromSelect"
-                                class="{{ $secondaryButton }} border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100">
-                                <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
-                                Reserve
-                            </button>
-                            <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'cleaning')"
-                                wire:loading.attr="disabled"
-                                wire:target="applyStatusFromSelect"
-                                class="{{ $secondaryButton }} border-blue-200 bg-blue-50 text-blue-950 hover:bg-blue-100">
-                                <i class="fa-solid fa-broom" aria-hidden="true"></i>
-                                Cleaning
-                            </button>
-                        </div>
                     @elseif ($table->status === 'reserved')
-                        <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'occupied')"
+                        @if ($table->booking_id)
+                            <button type="button" wire:click="checkIn({{ $table->id }})"
+                                wire:loading.attr="disabled"
+                                wire:target="checkIn"
+                                class="{{ $primaryButton }} bg-rose-600 text-white hover:bg-rose-700">
+                                <i class="fa-solid fa-chair" aria-hidden="true"></i>
+                                Check In
+                            </button>
+                        @else
+                            <button type="button" wire:click="seatWalkIn({{ $table->id }})"
+                                wire:loading.attr="disabled"
+                                wire:target="seatWalkIn"
+                                class="{{ $primaryButton }} bg-rose-600 text-white hover:bg-rose-700">
+                                <i class="fa-solid fa-chair" aria-hidden="true"></i>
+                                Seat Walk-in
+                            </button>
+                        @endif
+                        <button type="button" wire:click="releaseTable({{ $table->id }})"
                             wire:loading.attr="disabled"
-                            wire:target="applyStatusFromSelect"
-                            class="{{ $primaryButton }} bg-rose-600 text-white hover:bg-rose-700">
-                            <i class="fa-solid fa-chair" aria-hidden="true"></i>
-                            Seat Guests
-                        </button>
-                        <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'available')"
-                            wire:loading.attr="disabled"
-                            wire:target="applyStatusFromSelect"
+                            wire:target="releaseTable"
                             class="{{ $secondaryButton }} border-slate-200 bg-white text-slate-800 hover:bg-slate-50">
                             <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-                            Free Table
+                            Release Table
                         </button>
                     @elseif ($table->status === 'occupied')
                         <div class="w-full min-w-0" x-data="{ confirmCheckout: false }">
@@ -83,10 +77,10 @@
                                     Move this table to cleaning?
                                 </p>
                                 <div class="grid gap-2 sm:grid-cols-2">
-                                    <button type="button" wire:click="applyStatusFromSelect({{ $table->id }}, 'cleaning')"
+                                    <button type="button" wire:click="sendToCleaning({{ $table->id }})"
                                         @click="confirmCheckout = false"
                                         wire:loading.attr="disabled"
-                                        wire:target="applyStatusFromSelect"
+                                        wire:target="sendToCleaning"
                                         class="{{ $secondaryButton }} border-blue-200 bg-blue-50 text-blue-950 hover:bg-blue-100">
                                         Yes
                                     </button>
@@ -97,13 +91,20 @@
                                 </div>
                             </div>
                         </div>
-                    @elseif ($table->status === 'cleaning')
-                        <button type="button" wire:click="markReadyAfterCleaning({{ $table->id }})"
+                        <button type="button" wire:click="markFree({{ $table->id }})"
                             wire:loading.attr="disabled"
-                            wire:target="markReadyAfterCleaning"
+                            wire:target="markFree"
+                            class="{{ $secondaryButton }} border-slate-200 bg-white text-slate-800 hover:bg-slate-50">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                            Mark Free
+                        </button>
+                    @elseif ($table->status === 'cleaning')
+                        <button type="button" wire:click="markFree({{ $table->id }})"
+                            wire:loading.attr="disabled"
+                            wire:target="markFree"
                             class="{{ $primaryButton }} bg-emerald-600 text-white hover:bg-emerald-700">
                             <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-                            Mark Ready
+                            Mark Free
                         </button>
                     @endif
                 </div>

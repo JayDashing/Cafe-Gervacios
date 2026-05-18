@@ -2,13 +2,13 @@
 
 namespace App\Livewire\Admin;
 
-use App\Jobs\SendSmsJob;
 use App\Models\AutomationLog;
 use App\Models\Booking;
 use App\Models\QueueEntry;
 use App\Models\Setting;
 use App\Models\Table;
 use App\Services\AutomationSettings;
+use App\Services\BookingNoShowNotifier;
 use App\Services\QueueService;
 use App\Services\TableService;
 use Illuminate\Support\Facades\Gate;
@@ -42,6 +42,8 @@ class WaitlistPanel extends Component
     public bool $showWalkInModal = false;
 
     public int $walkInModalKey = 0;
+
+    public int $operationsRefreshVersion = 0;
 
     public string $activeTab = 'waiting';
 
@@ -175,13 +177,20 @@ class WaitlistPanel extends Component
     {
         $this->showWalkInModal = false;
         $this->walkInModalKey++;
-        $this->dispatch('tables-refresh');
+        $this->dispatchOperationsRefresh('walkin-created');
     }
 
     #[On('tables-refresh')]
+    #[On('table-updated')]
+    #[On('queue-updated')]
+    #[On('guest-seated')]
+    #[On('sms-sent')]
+    #[On('reservation-updated')]
+    #[On('eta-recalculated')]
     public function refreshOperationsState(): void
     {
         // Re-render after floor-map status changes so ETA, queue state, and table choices stay in sync.
+        $this->operationsRefreshVersion++;
     }
 
     public function seatFromQuickPick(int $entryId, int $tableId): void
@@ -236,13 +245,25 @@ class WaitlistPanel extends Component
     public function confirmAndSeatFromSeatButton(int $entryId): void
     {
         $this->ensureStaff();
-        $tableId = (int) ($this->seatTablePick[$entryId] ?? 0);
-        if ($tableId <= 0) {
-            $this->dispatch('notify', type: 'error', message: 'Please select a table first.');
+        $this->resetErrorBag(['holdCode.'.$entryId, 'seatCustomer']);
 
-            return;
+        $entry = QueueEntry::query()->findOrFail($entryId);
+        Gate::authorize('update', $entry);
+
+        if (filled($entry->hold_confirmation_code)) {
+            $entered = trim((string) ($this->holdCode[$entryId] ?? ''));
+            $expected = (string) $entry->hold_confirmation_code;
+            if (strcasecmp($entered, $expected) !== 0) {
+                $this->addError('holdCode.'.$entryId, 'Incorrect code.');
+                $this->dispatch('notify', type: 'error', message: 'Confirmation code does not match.');
+
+                return;
+            }
         }
-        $this->confirmAndSeat($entryId, $tableId);
+
+        if ($this->seatCustomerAutomatically($entryId)) {
+            unset($this->holdCode[$entryId], $this->seatTablePick[$entryId]);
+        }
     }
 
     public function confirmAndSeat(int $entryId, int $tableId): void
@@ -335,6 +356,7 @@ class WaitlistPanel extends Component
 
         $entry->hold_expires_at = $entry->hold_expires_at->copy()->addMinutes(5);
         $entry->save();
+        $this->dispatchOperationsRefresh('hold-extended');
         $this->dispatch('notify', type: 'success', message: 'Hold extended by 5 minutes.');
     }
 
@@ -479,6 +501,7 @@ class WaitlistPanel extends Component
 
             return str_contains(strtolower((string) $entry->customer_name), $term)
                 || str_contains(strtolower((string) $entry->customer_phone), $term)
+                || str_contains(strtolower((string) $entry->customer_email), $term)
                 || str_contains(strtolower((string) $entry->source), $term)
                 || str_contains((string) $entry->queue_display_number, $term);
         })->values();
@@ -506,7 +529,37 @@ class WaitlistPanel extends Component
 
         try {
             app(QueueService::class)->seat($entryId, (int) $tableId);
-            $this->dispatch('tables-refresh');
+            $this->selectedTableId = null;
+            $this->dispatchOperationsRefresh('guest-seated');
+            $this->dispatch('table-selected', tableId: null);
+            $this->dispatch('notify', type: 'success', message: 'Guest seated.');
+
+            return true;
+        } catch (\Throwable $e) {
+            $this->addError('seatCustomer', $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+
+            return false;
+        }
+    }
+
+    public function seatCustomerAutomatically(int $entryId): bool
+    {
+        $this->resetErrorBag('seatCustomer');
+
+        $entry = QueueEntry::findOrFail($entryId);
+        Gate::authorize('update', $entry);
+
+        if ($entry->status === 'cancelled') {
+            $this->dispatch('notify', type: 'error', message: 'This hold has expired. Please re-add the guest to the queue.');
+
+            return false;
+        }
+
+        try {
+            app(QueueService::class)->seatAutomatically($entryId);
+            $this->selectedTableId = null;
+            $this->dispatchOperationsRefresh('guest-seated');
             $this->dispatch('table-selected', tableId: null);
             $this->dispatch('notify', type: 'success', message: 'Guest seated.');
 
@@ -525,7 +578,7 @@ class WaitlistPanel extends Component
         Gate::authorize('delete', $entry);
 
         app(QueueService::class)->cancel($entryId);
-        $this->dispatch('tables-refresh');
+        $this->dispatchOperationsRefresh();
         $this->dispatch('notify', type: 'info', message: 'Removed from queue.');
     }
 
@@ -536,8 +589,8 @@ class WaitlistPanel extends Component
 
         try {
             app(QueueService::class)->notifyEntryManually($entryId);
-            $this->dispatch('tables-refresh');
-            $this->dispatch('notify', type: 'success', message: 'SMS sent.');
+            $this->dispatchOperationsRefresh('sms-sent');
+            $this->dispatch('notify', type: 'success', message: 'Notification sent.');
         } catch (\Throwable $e) {
             $this->dispatch('notify', type: 'error', message: $e->getMessage());
         }
@@ -545,7 +598,7 @@ class WaitlistPanel extends Component
 
     /**
      * Manual no-show: same side effects as AutomationEngine::markNoShows() for one booking
-     * (release table, cancel + no_show_at, SMS, automation log, notify queue).
+     * (free table, cancel + no_show_at, notify guest, automation log, notify queue).
      */
     public function markBookingNoShow(int $bookingId): void
     {
@@ -573,7 +626,7 @@ class WaitlistPanel extends Component
         $tableId = $booking->table_id;
         if ($tableId) {
             try {
-                app(TableService::class)->release((int) $tableId);
+                app(TableService::class)->noShow((int) $tableId);
             } catch (\Throwable) {
                 // ignore — matches AutomationEngine::markNoShows()
             }
@@ -585,15 +638,32 @@ class WaitlistPanel extends Component
             'table_id' => null,
         ]);
 
-        dispatch(new SendSmsJob($booking->customer_phone, 'no_show', [
-            'name' => $booking->customer_name,
-            'venue' => config('app.venue_name', config('app.name')),
-            'ref' => $booking->booking_ref,
-        ]));
+        $notification = app(BookingNoShowNotifier::class)->send($booking);
 
-        AutomationLog::record('no_shows', 'No-show marked', ['booking_id' => $booking->id]);
+        AutomationLog::record('no_shows', 'No-show marked', [
+            'booking_id' => $booking->id,
+            'notification' => $notification,
+        ]);
         app(QueueService::class)->notifyNextAfterTableRelease();
+        $this->dispatchOperationsRefresh('reservation-updated');
         $this->dispatch('notify', type: 'warning', message: 'Marked as no-show.');
+    }
+
+    private function dispatchOperationsRefresh(string ...$extraEvents): void
+    {
+        $this->operationsRefreshVersion++;
+
+        $events = array_unique([
+            'queue-updated',
+            'tables-refresh',
+            'table-updated',
+            'eta-recalculated',
+            ...$extraEvents,
+        ]);
+
+        foreach ($events as $event) {
+            $this->dispatch($event);
+        }
     }
 
     private function ensureStaff(): void

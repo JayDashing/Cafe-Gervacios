@@ -16,13 +16,13 @@
 <div
     {{ $attributes->merge([
         'class' =>
-            'fixed inset-0 z-[110] flex max-sm:items-stretch max-sm:justify-center sm:items-center sm:justify-center p-0 sm:p-6 md:p-10',
+            'fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 md:p-10',
     ]) }}
     @keydown.escape.window="$wire.{{ $closeAction }}()"
     role="presentation"
 >
     <div
-        class="absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-200 ease-out"
+        class="absolute inset-0 bg-slate-950/45 backdrop-blur-md transition-opacity duration-200 ease-out"
         wire:click="{{ $closeAction }}"
         aria-hidden="true"
     ></div>
@@ -45,7 +45,7 @@
                 if (closeB && typeof closeB.focus === 'function') closeB.focus();
             }
         })"
-        class="{{ $maxWidth }} relative z-10 flex max-h-[min(92dvh,900px)] w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:mx-auto sm:max-h-[90vh] max-sm:min-h-0 max-sm:flex-1"
+        class="{{ $maxWidth }} relative z-10 flex max-h-[min(92dvh,900px)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.18)] sm:mx-auto"
         wire:click.stop
         role="dialog"
         aria-modal="true"
@@ -65,11 +65,10 @@
                 type="button"
                 data-modal-close-btn
                 wire:click="{{ $closeAction }}"
-                class="group inline-flex shrink-0 items-center gap-2 border-0 bg-transparent pb-0.5 pl-2 pt-0 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-700 transition hover:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-panel-primary focus-visible:ring-offset-2"
+                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-panel-primary focus-visible:ring-offset-2"
                 aria-label="Close dialog"
             >
-                <span>Close</span>
-                <span class="text-base font-light leading-none" aria-hidden="true">&times;</span>
+                <span class="text-xl font-light leading-none" aria-hidden="true">&times;</span>
             </button>
         </header>
 
@@ -84,7 +83,7 @@
 
         @if ($showFooter && isset($footer))
             <footer
-                class="sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-5 sm:gap-3 sm:px-8"
+                class="sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-slate-200 bg-white px-5 py-5 sm:gap-3 sm:px-8"
             >
                 {{ $footer }}
             </footer>

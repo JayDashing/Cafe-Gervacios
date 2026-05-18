@@ -288,10 +288,10 @@
     @if ($enableGrouping)
         <div id="group-table-modal"
             class="fixed inset-0 z-[998] hidden items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
-            <div class="tc-ios-card relative w-full max-w-[320px] rounded-[14px] p-6 text-slate-900 shadow-xl" role="dialog"
+            <div class="tc-ios-card relative w-full max-w-md rounded-2xl p-6 text-slate-900 shadow-xl" role="dialog"
                 aria-modal="true" aria-labelledby="group-table-title">
                 <button type="button" id="group-table-modal-close"
-                    class="absolute right-3 top-2.5 border-0 bg-transparent text-lg leading-none text-slate-400 hover:text-slate-700"
+                    class="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg leading-none text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
                     aria-label="Close">&times;</button>
                 <h3 id="group-table-title" class="mb-1 text-[15px] font-medium">Merge into one table</h3>
                 <p class="mb-3 text-xs text-slate-500">Markers stay on the map. Capacity is summed across merged tables (not
@@ -300,14 +300,14 @@
                     (optional)</label>
                 <input id="group-table-label-input" type="text" maxlength="50" placeholder="e.g. T16 (auto if empty)"
                     class="mb-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200/60" />
-                <div class="flex gap-2">
-                    <button type="button" id="group-table-submit"
-                        class="flex-1 rounded-lg bg-panel-primary px-3 py-2.5 text-[13px] font-semibold text-white hover:opacity-90">
-                        Merge tables
-                    </button>
+                <div class="flex flex-col-reverse items-stretch justify-center gap-2 sm:flex-row sm:items-center">
                     <button type="button" id="group-table-cancel"
                         class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50">
                         Cancel
+                    </button>
+                    <button type="button" id="group-table-submit"
+                        class="rounded-lg bg-panel-primary px-4 py-2.5 text-[13px] font-semibold text-white hover:opacity-90">
+                        Merge tables
                     </button>
                 </div>
             </div>

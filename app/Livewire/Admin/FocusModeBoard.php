@@ -63,6 +63,10 @@ class FocusModeBoard extends Component
 
         Cache::forget('tables.venue.1');
         $this->dispatch('tables-refresh');
+        $this->dispatch('table-updated');
+        $this->dispatch('reservation-updated');
+        $this->dispatch('queue-updated');
+        $this->dispatch('eta-recalculated');
         $this->dispatch('notify', type: 'success', message: 'Reservation checked in.');
     }
 
@@ -88,4 +92,3 @@ class FocusModeBoard extends Component
         ]);
     }
 }
-

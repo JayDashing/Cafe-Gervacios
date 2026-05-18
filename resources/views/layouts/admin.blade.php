@@ -13,7 +13,6 @@
         rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <x-tailwind-cdn />
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
     @livewireStyles
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
@@ -28,12 +27,9 @@
             --tc-stroke: #d8dee8;
             --tc-on-dark: #f8fafc;
             --tc-on-bright: #ffffff;
-            /*
-             * Inter for web; SF Pro on Apple via system stack (SF isn’t a licensed webfont).
-             * Order: Inter → native UI (San Francisco / Segoe) → generic sans.
-             */
             --font-admin-ui: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial,
                 sans-serif;
+            --font-admin-display: var(--font-admin-ui);
         }
 
         /* Page titles — same stack as body/panels (see components/admin-panel-heading) */

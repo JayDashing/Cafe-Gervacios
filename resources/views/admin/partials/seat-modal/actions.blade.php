@@ -1,14 +1,14 @@
-{{-- Primary: Save + Close side by side. Destructive actions in a collapsed disclosure (edit mode only). --}}
+{{-- Primary actions. Destructive actions stay in a collapsed disclosure (edit mode only). --}}
 <div class="flex flex-col gap-3">
-    <div class="grid grid-cols-2 gap-3">
-        <button type="button" id="seat-modal-save"
-            class="min-h-[44px] w-full rounded-lg border border-panel-primary bg-panel-primary px-3 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition hover:bg-panel-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-panel-primary focus-visible:ring-offset-2">
-            Save
-        </button>
+    <div class="flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center">
         <button type="button" id="seat-modal-done"
             data-seat-modal-close
-            class="min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2">
-            Close
+            class="inline-flex min-h-[44px] min-w-[7.75rem] items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2">
+            Cancel
+        </button>
+        <button type="button" id="seat-modal-save"
+            class="inline-flex min-h-[44px] min-w-[7.75rem] items-center justify-center rounded-lg border border-panel-primary bg-panel-primary px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition hover:bg-panel-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-panel-primary focus-visible:ring-offset-2">
+            Save
         </button>
     </div>
 

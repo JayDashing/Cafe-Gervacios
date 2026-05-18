@@ -1,4 +1,4 @@
-<div class="flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3">
+<div class="flex w-full flex-wrap items-center justify-center gap-2 sm:gap-3">
     <button type="button" wire:click="closeSettingsModal"
         class="inline-flex min-h-11 min-w-[5.5rem] items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2">
         Cancel
@@ -57,7 +57,7 @@
     @endif
 
     @if ($settingsModal === 'qr')
-        <p class="w-full flex-1 text-[11px] leading-relaxed text-slate-600 sm:mr-auto sm:text-left">
+        <p class="w-full text-center text-[11px] leading-relaxed text-slate-600">
             Upload and crop use form posts. Close when finished.
         </p>
     @endif

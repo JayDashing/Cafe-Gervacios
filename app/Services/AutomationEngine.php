@@ -107,7 +107,8 @@ class AutomationEngine
             }
 
             try {
-                app(TableService::class)->override((int) $table->id, 'available');
+                app(TableService::class)->releaseTable((int) $table->id);
+                $table->refresh()->update(['booking_id' => null]);
                 $booking->update(['table_id' => null]);
                 AutomationLog::record('reservation_table_release', 'Released reserved table for cancelled/failed booking', [
                     'booking_id' => $booking->id,
@@ -204,11 +205,11 @@ class AutomationEngine
                 try {
                     $table = $booking->table;
                     if ($table !== null && $table->status === 'reserved') {
-                        app(TableService::class)->override((int) $tableId, 'available');
+                        app(TableService::class)->noShow((int) $tableId);
                         $noShowLogMessage = 'No-show marked; released reserved table to available';
                         $noShowLogPayload['table_label'] = $table->label;
                     } elseif ($table !== null && $table->status === 'occupied') {
-                        app(TableService::class)->release((int) $tableId);
+                        app(TableService::class)->sendToCleaning((int) $tableId);
                     }
                 } catch (\Throwable) {
                     // ignore
@@ -221,11 +222,7 @@ class AutomationEngine
                 'table_id' => null,
             ]);
 
-            dispatch(new SendSmsJob($booking->customer_phone, 'no_show', [
-                'name' => $booking->customer_name,
-                'venue' => config('app.venue_name', config('app.name')),
-                'ref' => $booking->booking_ref,
-            ]));
+            $noShowLogPayload['notification'] = app(BookingNoShowNotifier::class)->send($booking);
 
             AutomationLog::record('no_shows', $noShowLogMessage, $noShowLogPayload);
             app(QueueService::class)->notifyNextAfterTableRelease();

@@ -183,6 +183,9 @@ Route::middleware([AdminNotFound::class, AdminRole::class, 'admin.timeout', 'for
 
 Route::get('/admin/login', [LoginController::class, 'showLogin'])->name('login');
 Route::post('/admin/login', [LoginController::class, 'login'])->middleware('throttle:admin-login');
+if (app()->environment(['local', 'testing'])) {
+    Route::post('/admin/dev-login', [LoginController::class, 'devLogin'])->name('login.dev');
+}
 Route::post('/admin/logout', [LoginController::class, 'logout'])->name('logout');
 
 Route::middleware('guest')->prefix('admin')->group(function () {

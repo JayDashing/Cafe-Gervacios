@@ -10,62 +10,59 @@
         $lastUpdated = now()->timezone(config('app.timezone'))->format('M d, Y g:i:s A');
         $cards = [
             [
-                'label' => 'Total bookings today',
+                'label' => 'Bookings',
                 'value' => $this->totalBookingsToday,
-                'description' => 'Reservations with a booking time dated today.',
-                'icon' => 'fa-calendar-check',
+                'meta' => 'Today',
                 'href' => route('admin.bookings'),
-                'link' => 'View bookings',
             ],
             [
-                'label' => 'Checked-in bookings',
+                'label' => 'Check-ins',
                 'value' => $this->totalCheckedInToday,
-                'description' => 'Reservations marked checked in today.',
-                'icon' => 'fa-circle-check',
+                'meta' => 'Today',
                 'href' => route('admin.bookings'),
-                'link' => 'View booking records',
             ],
             [
-                'label' => 'Seated from queue',
+                'label' => 'Queue seated',
                 'value' => $this->totalSeatedFromQueue,
-                'description' => 'Walk-in queue entries seated today.',
-                'icon' => 'fa-users-line',
+                'meta' => 'Today',
                 'href' => route('admin.waitlist'),
-                'link' => 'View waitlist',
             ],
             [
-                'label' => 'Occupied tables',
+                'label' => 'Occupied',
                 'value' => $this->tablesOccupiedNow,
-                'description' => 'Tables currently marked occupied.',
-                'icon' => 'fa-chair',
+                'meta' => 'Tables',
                 'href' => route('admin.tables'),
-                'link' => 'View tables',
             ],
             [
-                'label' => 'Available tables',
+                'label' => 'Free tables',
                 'value' => $this->tablesFreeNow,
-                'description' => 'Tables currently free and available.',
-                'icon' => 'fa-table-cells',
+                'meta' => 'Available',
                 'href' => route('admin.tables'),
-                'link' => 'View tables',
             ],
         ];
     @endphp
 
-    <div class="sa-page-head">
-        <div>
-            <p class="sa-eyebrow">Reports & Analytics</p>
-            <h2 class="sa-page-title">Business metrics</h2>
-            <p class="sa-page-sub">Counts are read from bookings, queue entries, and table status records.</p>
+    <section class="sa-panel-card">
+        <div class="sa-panel-head sa-panel-head--compact">
+            <div class="sa-panel-actions">
+                <p class="sa-timestamp">Updated {{ $lastUpdated }}</p>
+                <a href="{{ route('admin.system-logs') }}" class="sa-source-link">
+                    <i class="fa-solid fa-clipboard-list text-[11px]" aria-hidden="true"></i>
+                    System Logs
+                </a>
+            </div>
         </div>
-        <div class="sa-page-actions">
-            <a href="{{ route('admin.system-logs') }}" class="sa-source-link sa-source-link--strong">
-                <i class="fa-solid fa-clipboard-list text-[11px]" aria-hidden="true"></i>
-                System Logs
-            </a>
-            <p class="sa-timestamp">Last updated {{ $lastUpdated }}</p>
+
+        <div class="sa-stat-grid">
+            @foreach ($cards as $card)
+                <a href="{{ $card['href'] }}" class="sa-stat-tile" aria-label="View {{ strtolower($card['label']) }}">
+                    <p class="sa-stat-label">{{ $card['label'] }}</p>
+                    <p class="sa-stat-value">{{ $card['value'] }}</p>
+                    <p class="sa-stat-meta">{{ $card['meta'] }}</p>
+                </a>
+            @endforeach
         </div>
-    </div>
+    </section>
 
     @unless ($this->hasSourceData)
         <div class="sa-empty-state" role="status">
@@ -77,35 +74,18 @@
         </div>
     @endunless
 
-    <div class="sa-stat-grid">
-        @foreach ($cards as $card)
-            <div class="sa-stat-card">
-                <div class="sa-stat-card-head">
-                    <p class="sa-stat-label">{{ $card['label'] }}</p>
-                    <div class="sa-stat-icon" aria-hidden="true"><i class="fa-solid {{ $card['icon'] }}"></i></div>
-                </div>
-                <p class="sa-stat-value">{{ $card['value'] }}</p>
-                <p class="sa-stat-sub">{{ $card['description'] }}</p>
-                <a href="{{ $card['href'] }}" class="sa-source-link">
-                    {{ $card['link'] }}
-                    <i class="fa-solid fa-arrow-right text-[10px]" aria-hidden="true"></i>
-                </a>
-            </div>
-        @endforeach
-    </div>
-
     <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
 
         <div class="sa-chart-card">
             <div class="sa-chart-head">
                 <div>
-                    <p class="sa-chart-title">Bookings by hour <span>- last 7 days</span></p>
-                    <p class="sa-chart-sub">Reservations grouped by hour of booking time.</p>
+                    <p class="sa-chart-title">Bookings by hour</p>
+                    <p class="sa-chart-sub">Last 7 days</p>
                 </div>
-                <a href="{{ route('admin.bookings') }}" class="sa-source-link">Source records</a>
+                <a href="{{ route('admin.bookings') }}" class="sa-source-link">Bookings</a>
             </div>
             @unless ($hasPeakData)
-                <p class="sa-chart-empty">No booking-hour data yet. New reservations will appear here automatically.</p>
+                <p class="sa-chart-empty">No booking-hour data yet.</p>
             @endunless
             <div class="sa-chart-scroll" aria-label="Bookings by hour chart, horizontally scrollable on small screens">
                 <div class="sa-chart-wrap sa-chart-wrap--wide">
@@ -117,13 +97,13 @@
         <div class="sa-chart-card">
             <div class="sa-chart-head">
                 <div>
-                    <p class="sa-chart-title">Top 5 tables <span>- last 30 days</span></p>
-                    <p class="sa-chart-sub">Most-used tables by reservation count.</p>
+                    <p class="sa-chart-title">Top tables</p>
+                    <p class="sa-chart-sub">Last 30 days</p>
                 </div>
-                <a href="{{ route('admin.tables') }}" class="sa-source-link">Source tables</a>
+                <a href="{{ route('admin.tables') }}" class="sa-source-link">Tables</a>
             </div>
             @unless ($hasTopData)
-                <p class="sa-chart-empty">No table usage yet. Assigned reservations will populate this chart.</p>
+                <p class="sa-chart-empty">No table usage yet.</p>
             @endunless
             <div class="sa-chart-scroll" aria-label="Top table usage chart, horizontally scrollable on small screens">
                 <div class="sa-chart-wrap">

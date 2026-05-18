@@ -85,7 +85,10 @@ class WaitlistPaperAlignmentTest extends TestCase
         Livewire::actingAs($this->user('admin'))
             ->test(WaitlistPanel::class)
             ->call('sendSmsManually', $entry->id)
-            ->assertDispatched('notify', type: 'success', message: 'SMS sent.');
+            ->assertDispatched('sms-sent')
+            ->assertDispatched('queue-updated')
+            ->assertDispatched('table-updated')
+            ->assertDispatched('notify', type: 'success', message: 'Notification sent.');
 
         $entry->refresh();
         $table->refresh();
@@ -141,6 +144,8 @@ class WaitlistPaperAlignmentTest extends TestCase
         Livewire::actingAs($this->user('admin'))
             ->test(WaitlistPanel::class)
             ->call('cancelEntry', $entry->id)
+            ->assertDispatched('queue-updated')
+            ->assertDispatched('table-updated')
             ->assertDispatched('notify', type: 'info', message: 'Removed from queue.');
 
         $this->assertSame('cancelled', $entry->refresh()->status);
@@ -159,6 +164,7 @@ class WaitlistPaperAlignmentTest extends TestCase
         Livewire::actingAs($this->user('admin'))
             ->test(WaitlistPanel::class)
             ->call('extendHold', $entry->id)
+            ->assertDispatched('queue-updated')
             ->assertDispatched('notify', type: 'success', message: 'Hold extended by 5 minutes.');
 
         $this->assertTrue($entry->refresh()->hold_expires_at->equalTo($before->addMinutes(5)));
@@ -183,7 +189,7 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->assertSee('Queue #'.$entry->queue_display_number)
             ->assertSee('ETA: 18 min')
             ->assertSee('Phone')
-            ->assertSee('Queue actions')
+            ->assertSee('Cancel Entry')
             ->assertSeeHtml('aria-haspopup="dialog"')
             ->assertSeeHtml('x-on:click.stop="detailsOpen = true"');
     }
@@ -197,10 +203,12 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->call('openWalkInModal')
             ->assertSet('showWalkInModal', true)
             ->assertSee('Register Walk-in')
-            ->assertSee('Selected Table')
-            ->assertSee('Floor Map')
-            ->assertSee('No suitable table available. Guest will be added to the waitlist.')
-            ->assertSee('Add to Waitlist')
+            ->assertSee('Guest Details')
+            ->assertSee('No suitable table available. Guest will join waitlist.')
+            ->assertSee('Estimated wait:')
+            ->assertSee('Continue')
+            ->assertDontSee('Choose an available table marker')
+            ->assertDontSee('Confirm & Add to Waitlist')
             ->assertDontSee('Seat selected table')
             ->call('closeWalkInModal')
             ->assertSet('showWalkInModal', false)
@@ -215,6 +223,8 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->assertSet('showWalkInModal', true)
             ->call('completeWalkInRegistration')
             ->assertSet('showWalkInModal', false)
+            ->assertDispatched('walkin-created')
+            ->assertDispatched('queue-updated')
             ->assertDispatched('tables-refresh');
     }
 
@@ -241,8 +251,12 @@ class WaitlistPaperAlignmentTest extends TestCase
         $this->actingAs($this->user('admin'))
             ->get(route('admin.waitlist'))
             ->assertOk()
-            ->assertSee('Floor Map Panel')
+            ->assertSee('Cafe Floor Map')
+            ->assertDontSee('Floor Map Utility')
             ->assertSeeHtml('data-blueprint-floor-map')
+            ->assertSeeHtml('data-operations-mode="true"')
+            ->assertDontSee('Merge Tables')
+            ->assertDontSee('Confirm Merge')
             ->assertSeeHtml('data-waitlist-root')
             ->assertSee('Operations Guest')
             ->assertSee('Add Walk-in');
@@ -265,6 +279,8 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->call('seatWaitingGuestAtFloorTable', $entry->id)
             ->assertSet('floorSeatTableId', null)
             ->assertDispatched('notify', type: 'success', message: 'Guest seated.')
+            ->assertDispatched('guest-seated')
+            ->assertDispatched('queue-updated')
             ->assertDispatched('tables-refresh');
 
         $this->assertSame('seated', $entry->refresh()->status);
@@ -341,7 +357,7 @@ class WaitlistPaperAlignmentTest extends TestCase
         $entry = app(QueueService::class)->join('Waiting Guest', '', 2, 'none', 'staff', 'desktop');
         $this->assertSame(10, $entry->refresh()->estimated_wait);
 
-        app(TableService::class)->override($table->id, 'available');
+        app(TableService::class)->markFree($table->id);
 
         $this->assertSame(0, $entry->refresh()->estimated_wait);
         $this->assertSame(0, $entry->last_estimated_wait);

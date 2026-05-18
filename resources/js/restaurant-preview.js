@@ -1351,17 +1351,14 @@ class RestaurantPreview {
         const status = normalizeStatus(table.status);
         const canSeat = status === 'reserved';
         const canFree = status === 'reserved' || status === 'cleaning';
-        const canReserve = status === 'available';
         const canOccupy = status === 'available';
         const canClean = status === 'occupied';
         const bookingUrl = this.bookingUrlForTable(table);
 
         return `
-            <a href="${bookingUrl}" class="rp-panel-action border-slate-900 bg-slate-900 text-white hover:bg-slate-800">Assign Booking</a>
             ${table.booking ? `<a href="${bookingUrl}" class="rp-panel-action">View Booking</a>` : ''}
             ${this.statusButton('occupied', 'Seat Guest', canSeat)}
             ${this.statusButton('available', 'Mark Free', canFree)}
-            ${this.statusButton('reserved', 'Mark Reserved', canReserve)}
             ${this.statusButton('occupied', 'Mark Occupied', canOccupy)}
             ${this.statusButton('cleaning', 'Mark Cleaning', canClean)}
         `;

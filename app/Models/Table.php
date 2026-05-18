@@ -16,6 +16,20 @@ class Table extends Model
 {
     use HasFactory;
 
+    public const STATUS_AVAILABLE = 'available';
+    public const STATUS_RESERVED = 'reserved';
+    public const STATUS_OCCUPIED = 'occupied';
+    public const STATUS_CLEANING = 'cleaning';
+    public const STATUS_UNAVAILABLE = 'unavailable';
+
+    public const STATUSES = [
+        self::STATUS_AVAILABLE,
+        self::STATUS_RESERVED,
+        self::STATUS_OCCUPIED,
+        self::STATUS_CLEANING,
+        self::STATUS_UNAVAILABLE,
+    ];
+
     protected $fillable = [
         'venue_id',
         'booking_id',
@@ -54,7 +68,7 @@ class Table extends Model
 
     public function isAvailable(): bool
     {
-        return $this->status === 'available';
+        return $this->status === self::STATUS_AVAILABLE;
     }
 
     /**

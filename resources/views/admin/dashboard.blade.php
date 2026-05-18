@@ -7,26 +7,13 @@
 @endsection
 
 @section('content')
-    <div class="admin-dashboard-animate mx-auto w-full max-w-7xl">
-        <div class="grid min-h-0 grid-cols-1 gap-5 xl:grid-cols-12 xl:items-stretch xl:gap-6">
-
-            {{-- Primary column: metrics + charts --}}
-            <div class="min-w-0 space-y-5 xl:col-span-8">
-                @if (auth()->user()->isAdmin())
-                    @livewire('admin.summary-bar')
-                @endif
+    <div class="admin-dashboard-animate mx-auto w-full max-w-[1400px]">
+        @if (auth()->user()->isAdmin())
+            @livewire('admin.summary-bar')
+        @else
+            <div class="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+                Staff accounts open the floor map from the sidebar.
             </div>
-
-            {{-- Secondary column: live status + staff --}}
-            <aside class="flex min-w-0 flex-col gap-5 xl:col-span-4">
-                @if (auth()->user()->isAdmin())
-                    @livewire('admin.queue-activity-feed')
-                @endif
-                @if (auth()->user()->isAdmin())
-                    @livewire('admin.staff-on-shift')
-                @endif
-            </aside>
-
-        </div>
+        @endif
     </div>
 @endsection

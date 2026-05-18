@@ -215,19 +215,19 @@ class NotificationService
     private function buildMessage(string $template, array $vars): string
     {
         $messages = [
-            'booking_confirmed' => 'Hi :name, your table at :venue is confirmed. Ref: :booking_ref. Show this SMS when you arrive.',
-            'queue_joined' => 'Hi :name, you are #:position in line (#:queue_no) at :venue. Est. wait: :wait mins. We will SMS when your table is ready.',
-            'table_ready' => ':name, your table at :venue is ready! Please come to the host desk within :minutes minutes. Your confirmation code: :code',
-            'queue_skipped' => ':name, we could not seat you in time at :venue. Please rejoin the queue if you are still here.',
-            'wait_extended' => ':name, wait time at :venue is now about :wait minutes. Thanks for your patience.',
-            'reminder_24h' => 'Reminder: :name, reservation at :venue tomorrow/ref :ref at :time.',
-            'reminder_2h' => 'Reminder: :name, reservation at :venue in ~2h. Ref: :ref. Time: :time.',
-            'late_checkin' => ':name, we have not checked you in for :ref at :venue. Please see the host desk.',
-            'no_show' => ':name, your reservation :ref at :venue was marked no-show. Contact us if this is a mistake.',
-            'automation_error' => 'Automation error [:task] at :venue: :message. Check /admin/logs.',
-            'admin_sms_test' => 'Cafe Gervacios: admin panel SMS test. If you received this, PhilSMS is configured correctly.',
-            'payment_verification_rejected' => 'Your reservation payment could not be verified. Please contact us or rebook at :site_url.',
-            'payment_rejected' => 'Your reservation payment could not be verified. Please contact us or rebook at :site_url.',
+            'booking_confirmed' => 'Cafe Gervacios: Booking confirmed. Ref :booking_ref. Show this SMS on arrival.',
+            'queue_joined' => 'Cafe Gervacios: Queue #:position, No. :queue_no. Est wait :wait min. We will text when ready.',
+            'table_ready' => 'Cafe Gervacios: Your table is ready. Go to the host desk in :minutes min. Code: :code',
+            'queue_skipped' => 'Cafe Gervacios: We could not seat you in time. Please rejoin the queue if still waiting.',
+            'wait_extended' => 'Cafe Gervacios: Updated wait time is about :wait min. Thank you.',
+            'reminder_24h' => 'Cafe Gervacios: Reminder for ref :ref tomorrow at :time.',
+            'reminder_2h' => 'Cafe Gervacios: Reminder for ref :ref today at :time.',
+            'late_checkin' => 'Cafe Gervacios: Please check in for ref :ref at the host desk.',
+            'no_show' => 'Cafe Gervacios: Ref :ref was marked no-show. Contact staff if this is wrong.',
+            'automation_error' => 'Cafe Gervacios: Automation error [:task]. Check admin logs.',
+            'admin_sms_test' => 'Cafe Gervacios SMS test. PhilSMS works.',
+            'payment_verification_rejected' => 'Cafe Gervacios: Payment not verified. Please contact staff or rebook.',
+            'payment_rejected' => 'Cafe Gervacios: Payment not verified. Please contact staff or rebook.',
         ];
 
         $message = $messages[$template] ?? 'Notification from :venue';

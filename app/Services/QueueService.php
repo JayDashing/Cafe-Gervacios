@@ -6,10 +6,13 @@ use App\Models\QueueEntry;
 use App\Models\Setting;
 use App\Models\Table;
 use App\Jobs\SendSmsJob;
+use App\Mail\TableReadyMail;
 use App\Models\AutomationLog;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class QueueService
@@ -90,14 +93,16 @@ class QueueService
         int $partySize,
         string $priorityType,
         string $source = 'website',
-        ?string $deviceType = null
+        ?string $deviceType = null,
+        ?string $email = null
     ): QueueEntry {
         $phone = trim((string) $phone);
+        $email = trim((string) $email);
 
         $priority = app(PriorityService::class);
         $score = $priority->getScore($priorityType);
 
-        $entry = DB::transaction(function () use ($name, $phone, $partySize, $priorityType, $priority, $score, $source, $deviceType) {
+        $entry = DB::transaction(function () use ($name, $phone, $email, $partySize, $priorityType, $priority, $score, $source, $deviceType) {
             $max = QueueEntry::whereDate('joined_at', today())
                 ->lockForUpdate()
                 ->max('queue_display_number');
@@ -107,6 +112,7 @@ class QueueService
             return QueueEntry::create([
                 'customer_name' => $name,
                 'customer_phone' => $phone,
+                'customer_email' => $email !== '' ? $email : null,
                 'party_size' => $partySize,
                 'priority_type' => $priorityType,
                 'priority_score' => $score,
@@ -199,6 +205,46 @@ class QueueService
 
         Cache::forget('tables.venue.1');
         $this->refreshEstimatedWaits();
+    }
+
+    public function seatAutomatically(int $entryId): void
+    {
+        $entry = QueueEntry::findOrFail($entryId);
+
+        if (!in_array($entry->status, ['waiting', 'notified'], true)) {
+            throw new \InvalidArgumentException('This waitlist entry cannot be seated (wrong status).');
+        }
+
+        $table = null;
+
+        if ($entry->reserved_table_id !== null) {
+            $held = Table::query()->find($entry->reserved_table_id);
+            if (
+                $held !== null
+                && in_array($held->status, ['reserved', 'available'], true)
+                && $this->tableFitsEntry($entry, $held)
+            ) {
+                $table = $held;
+            }
+        }
+
+        if ($table === null) {
+            $table = $this->sortTablesForParty(
+                Table::query()
+                    ->where('status', 'available')
+                    ->where('capacity', '>=', $entry->party_size)
+                    ->orderBy('capacity')
+                    ->orderBy('id')
+                    ->get(),
+                $entry
+            )->first();
+        }
+
+        if ($table === null) {
+            throw new \InvalidArgumentException('No free table fits this party.');
+        }
+
+        $this->seat($entryId, (int) $table->id);
     }
 
     public function cancel(int $entryId): void
@@ -309,6 +355,13 @@ class QueueService
         $assignedTable = null;
 
         foreach ($waiting as $entry) {
+            $email = trim((string) $entry->customer_email);
+            $phone = trim((string) $entry->customer_phone);
+
+            if ($phone === '' && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                continue;
+            }
+
             $table = $tables->first(fn(Table $t) => $this->tableFitsEntry($entry, $t));
 
             if ($table) {
@@ -370,13 +423,7 @@ class QueueService
             return;
         }
 
-        dispatch(new SendSmsJob($next->customer_phone, 'table_ready', [
-            'name' => $next->customer_name,
-            'venue' => $venueName . ' — Table ' . $assignedTable->label,
-            'is_priority' => $next->isPriority(),
-            'minutes' => (string) $holdMinutes,
-            'code' => $next->hold_confirmation_code ?? '',
-        ]));
+        $this->sendTableReadyNotification($next, $assignedTable, $holdMinutes, $venueName);
 
         Cache::forget('tables.venue.1');
         $this->refreshEstimatedWaits();
@@ -409,8 +456,8 @@ class QueueService
                 throw new \InvalidArgumentException('This waitlist entry cannot be notified.');
             }
 
-            if (trim((string) $entry->customer_phone) === '') {
-                throw new \InvalidArgumentException('This guest has no phone number for SMS.');
+            if (trim((string) $entry->customer_phone) === '' && trim((string) $entry->customer_email) === '') {
+                throw new \InvalidArgumentException('This guest has no phone number or email for notification.');
             }
 
             $table = null;
@@ -468,13 +515,7 @@ class QueueService
         $entry = QueueEntry::query()->findOrFail($entryId);
         $table = $reservedTableId !== null ? Table::query()->find($reservedTableId) : null;
 
-        dispatch(new SendSmsJob($entry->customer_phone, 'table_ready', [
-            'name' => $entry->customer_name,
-            'venue' => $venueName.($table ? ' - Table '.$table->label : ''),
-            'is_priority' => $entry->isPriority(),
-            'minutes' => (string) $holdMinutes,
-            'code' => $entry->hold_confirmation_code ?? '',
-        ]));
+        $this->sendTableReadyNotification($entry, $table, $holdMinutes, $venueName);
 
         Cache::forget('tables.venue.1');
         $this->refreshEstimatedWaits();
@@ -483,6 +524,43 @@ class QueueService
         return $entry;
     }
 
+
+    private function sendTableReadyNotification(QueueEntry $entry, ?Table $table, int $holdMinutes, string $venueName): void
+    {
+        $tableLabel = $table ? ' Table '.$table->label.'.' : '';
+        $code = (string) ($entry->hold_confirmation_code ?? '');
+        $email = trim((string) $entry->customer_email);
+
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+            Mail::to($email, (string) $entry->customer_name)->send(new TableReadyMail(
+                customerName: (string) $entry->customer_name,
+                venueName: $venueName,
+                tableLabel: $table?->label,
+                holdMinutes: $holdMinutes,
+                confirmationCode: $code,
+            ));
+
+            Log::info('Waitlist table-ready email sent', [
+                'entry_id' => $entry->id,
+                'email_domain' => str_contains($email, '@') ? substr(strrchr($email, '@'), 1) : null,
+            ]);
+
+            return;
+        }
+
+        $phone = trim((string) $entry->customer_phone);
+        if ($phone === '') {
+            throw new \InvalidArgumentException('This guest has no phone number or email for notification.');
+        }
+
+        dispatch(new SendSmsJob($phone, 'table_ready', [
+            'name' => $entry->customer_name,
+            'venue' => $venueName.($table ? ' - Table '.$table->label : ''),
+            'is_priority' => $entry->isPriority(),
+            'minutes' => (string) $holdMinutes,
+            'code' => $code,
+        ]));
+    }
     public function estimateWait(int $partySize, string $priorityType = 'none'): int
     {
         $priority = app(PriorityService::class);

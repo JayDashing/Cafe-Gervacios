@@ -45,6 +45,9 @@ class StaffWalkInQueueTest extends TestCase
             ->call('register')
             ->assertHasNoErrors()
             ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1')
+            ->assertDispatched('queue-updated')
+            ->assertDispatched('tables-refresh')
+            ->assertDispatched('eta-recalculated')
             ->assertDispatched('walk-in-registration-completed');
 
         $this->assertSame(1, QueueEntry::count());
@@ -88,6 +91,8 @@ class StaffWalkInQueueTest extends TestCase
             ->call('register')
             ->assertHasNoErrors()
             ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1')
+            ->assertDispatched('queue-updated')
+            ->assertDispatched('eta-recalculated')
             ->assertDispatched('walk-in-registration-completed');
 
         $entry = QueueEntry::firstOrFail();
@@ -120,6 +125,7 @@ class StaffWalkInQueueTest extends TestCase
             ->assertHasNoErrors()
             ->assertSet('selectedTableId', null)
             ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1')
+            ->assertDispatched('queue-updated')
             ->assertDispatched('walk-in-registration-completed');
 
         $entry = QueueEntry::firstOrFail();
@@ -183,6 +189,83 @@ class StaffWalkInQueueTest extends TestCase
         $this->assertSame('occupied', $table->refresh()->status);
     }
 
+    public function test_modal_walk_in_wizard_reviews_waitlist_before_success(): void
+    {
+        Queue::fake([SendSmsJob::class]);
+
+        $user = User::factory()->create([
+            'role' => 'staff',
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+        $this->tableWithSeat('T2', 2, 'occupied', 30, 35);
+
+        Livewire::actingAs($user)
+            ->test(StaffWalkInQueue::class, ['modalMode' => true])
+            ->set('customer_name', 'Wizard Waitlist Guest')
+            ->set('customer_phone', '')
+            ->set('party_size', 2)
+            ->set('priority_type', 'none')
+            ->assertSee('Guest Details')
+            ->call('continueToTableSelection')
+            ->assertSet('wizardStep', 'selection')
+            ->assertSee('Table Selection')
+            ->call('continueToReview', 'waitlist')
+            ->assertSet('wizardStep', 'review')
+            ->assertSee('Confirm & Add to Waitlist')
+            ->assertSee('Edit Guest Details')
+            ->call('confirmWizardAction')
+            ->assertSet('wizardStep', 'success')
+            ->assertSee('Guest added to waitlist.')
+            ->assertSee('Wizard Waitlist Guest')
+            ->assertSee('#1')
+            ->assertSee('2 guests')
+            ->assertSee('ETA')
+            ->assertSee('Disabled')
+            ->assertDispatched('queue-updated')
+            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1')
+            ->call('finishWizard')
+            ->assertDispatched('walk-in-registration-completed');
+
+        $this->assertSame('waiting', QueueEntry::firstOrFail()->status);
+    }
+
+    public function test_modal_walk_in_wizard_reviews_table_selection_before_seating(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'staff',
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+        $table = $this->tableWithSeat('T4', 4, 'available', 40, 45);
+
+        Livewire::actingAs($user)
+            ->test(StaffWalkInQueue::class, ['modalMode' => true])
+            ->set('customer_name', 'Wizard Seat Guest')
+            ->set('customer_phone', '')
+            ->set('party_size', 2)
+            ->set('priority_type', 'none')
+            ->call('continueToTableSelection')
+            ->assertSet('wizardStep', 'selection')
+            ->assertSee('Table Selection')
+            ->call('selectTable', $table->id)
+            ->assertSet('selectedTableId', $table->id)
+            ->call('continueToReview', 'seat')
+            ->assertSet('wizardStep', 'review')
+            ->assertSee('Confirm & Seat Guest')
+            ->assertSee('Edit Guest Details')
+            ->assertSee('Edit Table Selection')
+            ->call('confirmWizardAction')
+            ->assertDispatched('queue-updated')
+            ->assertDispatched('tables-refresh')
+            ->assertDispatched('guest-seated')
+            ->assertDispatched('table-updated')
+            ->assertDispatched('walk-in-registration-completed');
+
+        $this->assertSame('seated', QueueEntry::firstOrFail()->status);
+        $this->assertSame('occupied', $table->refresh()->status);
+    }
+
     public function test_incompatible_floor_map_marker_selection_shows_error(): void
     {
         $user = User::factory()->create([
@@ -220,6 +303,8 @@ class StaffWalkInQueueTest extends TestCase
             ->assertHasNoErrors()
             ->assertSet('selectedTableId', null)
             ->assertDispatched('notify', type: 'success', message: 'Guest seated at table T1.')
+            ->assertDispatched('guest-seated')
+            ->assertDispatched('table-updated')
             ->assertDispatched('walk-in-registration-completed');
 
         $entry = QueueEntry::firstOrFail();

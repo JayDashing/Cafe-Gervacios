@@ -8,9 +8,9 @@
 
 
     <?php if ($showCategoryForm): ?>
-    <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
         wire:click.self="$set('showCategoryForm', false)">
-        <div class="w-full max-w-md rounded-[14px] border border-panel-stroke bg-white p-6 shadow-xl">
+        <div class="w-full max-w-md rounded-2xl border border-panel-stroke bg-white p-6 shadow-xl">
             <h2 class="mb-4 text-lg font-semibold text-panel-primary">{{ $editingCategoryId ? 'Edit category' : 'New category' }}</h2>
             <form wire:submit="saveCategory">
                 <label class="mb-1 block text-sm font-medium text-[#5a6a7e]">Category name</label>
@@ -30,7 +30,7 @@
         }
     endif;
     unset($__errorArgs, $__bag); ?>
-                <div class="mt-4 flex justify-end gap-3">
+                <div class="mt-4 flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                     <button type="button" wire:click="$set('showCategoryForm', false)"
                         class="px-4 py-2 text-sm text-[#5a6a7e] hover:text-panel-primary">Cancel</button>
                     <button type="submit"
@@ -43,9 +43,9 @@
 
 
     <?php if ($showItemForm): ?>
-    <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
         wire:click.self="$set('showItemForm', false)">
-        <div class="w-full max-w-lg rounded-[14px] border border-panel-stroke bg-white p-6 shadow-xl">
+        <div class="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-panel-stroke bg-white p-6 shadow-xl">
             <h2 class="mb-4 text-lg font-semibold text-panel-primary">{{ $editingItemId ? 'Edit item' : 'New item' }}</h2>
             <form wire:submit="saveItem" class="flex flex-col gap-4">
                 <div>
@@ -157,7 +157,7 @@
                         class="rounded border-panel-stroke text-panel-primary focus:ring-panel-primary/25" />
                     <span class="text-sm text-panel-primary">Available</span>
                 </label>
-                <div class="mt-2 flex justify-end gap-3">
+                <div class="mt-2 flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                     <button type="button" wire:click="$set('showItemForm', false)"
                         class="px-4 py-2 text-sm text-[#5a6a7e] hover:text-panel-primary">Cancel</button>
                     <button type="submit"

@@ -36,6 +36,18 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->assertSeeHtml('data-blueprint-image');
     }
 
+    public function test_floor_map_daily_ui_hides_table_list_tab(): void
+    {
+        $this->actingAs($this->admin())
+            ->get(route('admin.tables'))
+            ->assertOk()
+            ->assertSee('Floor Map')
+            ->assertSee('Calendar')
+            ->assertSeeHtml('data-blueprint-floor-map')
+            ->assertSeeHtml('data-operations-mode="false"')
+            ->assertDontSee('Table List');
+    }
+
     public function test_admin_can_place_table_and_invalid_coordinates_are_rejected(): void
     {
         $this->actingAs($this->admin())
@@ -315,6 +327,62 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->assertSeeHtml('aria-label="Reserved tables on map: 1"')
             ->assertSeeHtml('aria-label="Occupied tables on map: 1"')
             ->assertSeeHtml('aria-label="Cleaning tables on map: 0"');
+    }
+
+    public function test_operations_status_modal_supports_cleaning_status_for_table_and_seats(): void
+    {
+        [$table] = $this->tableWithSeats('C1', 2, [[10, 10], [12, 10]]);
+        $table->update(['status' => 'occupied']);
+        Seat::query()->where('table_id', $table->id)->update(['status' => 'occupied']);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.tables.operations.status'), [
+                'table_id' => $table->id,
+                'status' => 'cleaning',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertSame('cleaning', $table->refresh()->status);
+        $this->assertSame(
+            ['cleaning', 'cleaning'],
+            Seat::query()->where('table_id', $table->id)->orderBy('seat_index')->pluck('status')->all()
+        );
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.tables.operations.status'), [
+                'table_id' => $table->id,
+                'status' => 'available',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertSame('available', $table->refresh()->status);
+        $this->assertSame(
+            ['free', 'free'],
+            Seat::query()->where('table_id', $table->id)->orderBy('seat_index')->pluck('status')->all()
+        );
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.tables.operations.status'), [
+                'table_id' => $table->id,
+                'status' => 'reserved',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame('available', $table->refresh()->status);
+        $this->assertSame(
+            ['free', 'free'],
+            Seat::query()->where('table_id', $table->id)->orderBy('seat_index')->pluck('status')->all()
+        );
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.tables.operations.status'), [
+                'table_id' => $table->id,
+                'status' => 'needs_cleaning',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
     }
 
     private function admin(): User

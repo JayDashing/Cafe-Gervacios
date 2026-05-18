@@ -6,6 +6,43 @@ Replace `/path/to/artisan` with the absolute path to this project’s `artisan` 
 
 ---
 
+## Local development login
+
+When `APP_ENV=local`, database seeding ensures this development admin account exists:
+
+```text
+Email: admin@kiosk.test
+Password: admin123
+```
+
+These are development-only credentials. They are created by `LocalDevelopmentSeeder` and are not seeded in production.
+
+To recreate or reset the local admin without rebuilding the database:
+
+```bash
+php artisan dev:reset-admin
+```
+
+Expected output:
+
+```text
+---------------------------------
+Local admin ready
+Email: admin@kiosk.test
+Password: admin123
+---------------------------------
+```
+
+To recreate it through normal local seeding:
+
+```bash
+php artisan db:seed
+```
+
+The local login throttle is relaxed for development testing only. Production keeps the normal admin login lockout protection.
+
+---
+
 ## Required for SMS to work
 
 Outbound SMS (queue notifications, booking confirmations, OTP, etc.) is sent **asynchronously** via Laravel’s queue.

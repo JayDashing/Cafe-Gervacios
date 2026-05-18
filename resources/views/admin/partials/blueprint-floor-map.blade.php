@@ -3,6 +3,7 @@
 
     $canEditBlueprint = auth()->user()?->isAdmin() ?? false;
     $editMode = $canEditBlueprint && request()->boolean('edit');
+    $operationsMode = (bool) ($operationsMode ?? false) && ! $editMode;
     $floorplanRelative = Setting::get('floorplan_image', 'images/floorplan.png');
     $floorplanPath = public_path($floorplanRelative);
     $hasFloorplan = is_file($floorplanPath);
@@ -38,6 +39,7 @@
             'seat_count' => (int) $group->seats->count(),
             'furniture_type' => (string) ($table->furniture_type ?? 'standard'),
             'merge_group' => (string) ($table->getAttribute('merge_group') ?? 'default'),
+            'booking_id' => $table->booking_id ? (int) $table->booking_id : null,
             'booking' => $booking ? [
                 'id' => (int) $booking->id,
                 'ref' => (string) $booking->booking_ref,
@@ -70,9 +72,11 @@
 @endphp
 
 <section
-    class="bfm-shell overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm {{ $editMode ? 'is-edit-mode' : '' }}"
+    class="bfm-shell overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm {{ $editMode ? 'is-edit-mode' : '' }} {{ $operationsMode ? 'is-operations-mode' : '' }}"
     data-blueprint-floor-map
     data-edit-mode="{{ $editMode ? 'true' : 'false' }}"
+    data-operations-mode="{{ $operationsMode ? 'true' : 'false' }}"
+    data-api-tables="{{ route('admin.api.tables.operations') }}"
     data-api-status="{{ route('admin.api.tables.operations.status') }}"
     data-api-merge-groups="{{ route('admin.api.tables.operations.merge-groups') }}"
     data-api-place="{{ $canEditBlueprint ? route('admin.api.seats.place') : '' }}"
@@ -107,11 +111,25 @@
                     Save Layout
                 </button>
             </div>
-            <a href="{{ route('admin.tables') }}"
-                class="tc-admin-btn-secondary inline-flex min-h-9 items-center justify-center gap-2 px-3 py-2 text-xs">
-                <i class="fa-solid fa-arrow-left text-[11px]" aria-hidden="true"></i>
-                Exit Edit Mode
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                @if ($hasFloorplan)
+                    <div class="bfm-zoom-controls" aria-label="Blueprint zoom controls">
+                        <button type="button" class="bfm-zoom-btn" data-blueprint-action="zoom-out" aria-label="Zoom out">
+                            <i class="fa-solid fa-minus" aria-hidden="true"></i>
+                        </button>
+                        <span class="bfm-zoom-label" data-blueprint-zoom-label>Fit</span>
+                        <button type="button" class="bfm-zoom-btn" data-blueprint-action="zoom-in" aria-label="Zoom in">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="bfm-zoom-fit" data-blueprint-action="zoom-fit">Fit</button>
+                    </div>
+                @endif
+                <a href="{{ route('admin.tables') }}"
+                    class="tc-admin-btn-secondary inline-flex min-h-9 items-center justify-center gap-2 px-3 py-2 text-xs">
+                    <i class="fa-solid fa-arrow-left text-[11px]" aria-hidden="true"></i>
+                    Exit Edit Mode
+                </a>
+            </div>
         </div>
     @endif
 
@@ -121,14 +139,16 @@
         <button type="button" class="text-xs font-bold uppercase tracking-wide text-emerald-900" data-blueprint-action="cancel-placement">Cancel</button>
     </div>
 
-    <div class="bfm-merge-bar mx-3 mt-3 hidden items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950"
-        data-blueprint-merge-bar>
-        <span class="font-semibold" data-blueprint-selection-summary>Select two or more tables to merge.</span>
-        <div class="flex items-center gap-2">
-            <button type="button" class="tc-admin-btn-primary min-h-9 px-3 py-2 text-xs" data-blueprint-action="open-merge" disabled>Confirm Merge</button>
-            <button type="button" class="tc-admin-btn-secondary min-h-9 px-3 py-2 text-xs" data-blueprint-action="cancel-merge-select">Cancel</button>
+    @unless ($operationsMode)
+        <div class="bfm-merge-bar mx-3 mt-3 hidden items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950"
+            data-blueprint-merge-bar>
+            <span class="font-semibold" data-blueprint-selection-summary>Select two or more tables to merge.</span>
+            <div class="flex items-center gap-2">
+                <button type="button" class="tc-admin-btn-primary min-h-9 px-3 py-2 text-xs" data-blueprint-action="open-merge" disabled>Confirm Merge</button>
+                <button type="button" class="tc-admin-btn-secondary min-h-9 px-3 py-2 text-xs" data-blueprint-action="cancel-merge-select">Cancel</button>
+            </div>
         </div>
-    </div>
+    @endunless
 
     <div class="bfm-body bg-slate-100 p-3" data-blueprint-body>
         <div class="bfm-map-card rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
@@ -180,7 +200,8 @@
             @endunless
         </div>
 
-        <aside class="bfm-panel rounded-xl border border-slate-200 bg-white shadow-sm" data-blueprint-panel hidden></aside>
+        <aside class="bfm-panel rounded-xl border border-slate-200 bg-white shadow-sm" data-blueprint-panel role="dialog"
+            aria-label="Table actions" hidden></aside>
     </div>
 
     @if ($editMode)
@@ -219,7 +240,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end">
+                    <div class="flex flex-col-reverse items-stretch justify-center gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center">
                         <button type="button" class="tc-admin-btn-secondary min-h-10 px-4 py-2 text-sm" data-blueprint-action="close-add-marker">Cancel</button>
                         <button type="submit" class="tc-admin-btn-primary min-h-10 px-4 py-2 text-sm">Choose Location</button>
                     </div>
@@ -228,42 +249,44 @@
         </div>
     @endif
 
-    <div class="bfm-modal" data-blueprint-merge-modal hidden>
-        <div class="bfm-modal-card" role="dialog" aria-modal="true" aria-labelledby="bfm-merge-title">
-            <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                <div>
-                    <h3 id="bfm-merge-title" class="text-base font-semibold text-slate-950">Merge Tables</h3>
-                    <p class="mt-0.5 text-xs text-slate-500" data-blueprint-merge-summary>Choose tables first.</p>
+    @unless ($operationsMode)
+        <div class="bfm-modal" data-blueprint-merge-modal hidden>
+            <div class="bfm-modal-card" role="dialog" aria-modal="true" aria-labelledby="bfm-merge-title">
+                <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <div>
+                        <h3 id="bfm-merge-title" class="text-base font-semibold text-slate-950">Merge Tables</h3>
+                        <p class="mt-0.5 text-xs text-slate-500" data-blueprint-merge-summary>Choose tables first.</p>
+                    </div>
+                    <button type="button" class="bfm-close-btn" data-blueprint-action="close-merge" aria-label="Close">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
                 </div>
-                <button type="button" class="bfm-close-btn" data-blueprint-action="close-merge" aria-label="Close">
-                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-                </button>
+                <form data-blueprint-merge-form>
+                    <div class="grid gap-3 p-4">
+                        <div>
+                            <label class="bfm-field-label" for="bfm-merge-booking">Booking or walk-in group</label>
+                            <select id="bfm-merge-booking" class="bfm-input" data-merge-field="booking">
+                                <option value="">Walk-in group</option>
+                                @foreach ($bookingChoices as $booking)
+                                    <option value="{{ $booking['id'] }}">
+                                        {{ $booking['ref'] }} - {{ $booking['guest'] }} - {{ $booking['party'] }} guests
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="bfm-field-label" for="bfm-merge-label">Group label</label>
+                            <input id="bfm-merge-label" class="bfm-input" type="text" data-merge-field="label" placeholder="Example: T1 + T2">
+                        </div>
+                    </div>
+                    <div class="flex flex-col-reverse items-stretch justify-center gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center">
+                        <button type="button" class="tc-admin-btn-secondary min-h-10 px-4 py-2 text-sm" data-blueprint-action="close-merge">Cancel</button>
+                        <button type="submit" class="tc-admin-btn-primary min-h-10 px-4 py-2 text-sm">Confirm Merge</button>
+                    </div>
+                </form>
             </div>
-            <form data-blueprint-merge-form>
-                <div class="grid gap-3 p-4">
-                    <div>
-                        <label class="bfm-field-label" for="bfm-merge-booking">Booking or walk-in group</label>
-                        <select id="bfm-merge-booking" class="bfm-input" data-merge-field="booking">
-                            <option value="">Walk-in group</option>
-                            @foreach ($bookingChoices as $booking)
-                                <option value="{{ $booking['id'] }}">
-                                    {{ $booking['ref'] }} - {{ $booking['guest'] }} - {{ $booking['party'] }} guests
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="bfm-field-label" for="bfm-merge-label">Group label</label>
-                        <input id="bfm-merge-label" class="bfm-input" type="text" data-merge-field="label" placeholder="Example: T1 + T2">
-                    </div>
-                </div>
-                <div class="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end">
-                    <button type="button" class="tc-admin-btn-secondary min-h-10 px-4 py-2 text-sm" data-blueprint-action="close-merge">Cancel</button>
-                    <button type="submit" class="tc-admin-btn-primary min-h-10 px-4 py-2 text-sm">Confirm Merge</button>
-                </div>
-            </form>
         </div>
-    </div>
+    @endunless
 </section>
 
 <style>
@@ -288,6 +311,196 @@
     .bfm-map-scroll {
         max-height: calc(100vh - 230px);
         min-height: 520px;
+    }
+
+    .bfm-shell:not(.is-edit-mode):not(.is-operations-mode) {
+        overflow: visible;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .bfm-shell:not(.is-edit-mode):not(.is-operations-mode) .bfm-body {
+        padding: 0;
+        background: transparent;
+    }
+
+    .bfm-shell:not(.is-edit-mode):not(.is-operations-mode) .bfm-map-card {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .bfm-shell:not(.is-edit-mode):not(.is-operations-mode) .bfm-map-scroll {
+        display: grid;
+        place-items: center;
+        height: clamp(430px, calc(100dvh - 305px), 650px);
+        min-height: 0;
+        max-height: none;
+        overflow: hidden;
+        padding: 0.75rem;
+        border: 1px solid #d8dee8;
+        border-radius: 1rem;
+        background: #eef2f7;
+    }
+
+    .bfm-shell:not(.is-edit-mode) .bfm-stage {
+        min-width: 0;
+        max-width: none;
+        overflow: visible;
+        background: transparent;
+    }
+
+    .bfm-shell:not(.is-edit-mode) .bfm-blueprint {
+        width: auto;
+        max-width: none;
+        height: auto;
+    }
+
+    .bfm-zoom-controls {
+        display: inline-flex;
+        min-height: 2.25rem;
+        align-items: stretch;
+        overflow: hidden;
+        border-radius: 0.75rem;
+        border: 1px solid #d8dee8;
+        background: #f8fafc;
+        color: #334155;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+    }
+
+    .bfm-zoom-btn,
+    .bfm-zoom-fit {
+        display: inline-flex;
+        min-width: 2.25rem;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: #fff;
+        color: #334155;
+        font-size: 0.72rem;
+        font-weight: 800;
+        transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+    }
+
+    .bfm-zoom-btn:hover:not(:disabled),
+    .bfm-zoom-fit:hover:not(:disabled) {
+        background: #eef2f7;
+        color: #0f172a;
+    }
+
+    .bfm-zoom-btn:disabled,
+    .bfm-zoom-fit:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+    }
+
+    .bfm-zoom-label {
+        display: inline-flex;
+        min-width: 3.5rem;
+        align-items: center;
+        justify-content: center;
+        border-left: 1px solid #d8dee8;
+        border-right: 1px solid #d8dee8;
+        background: #f8fafc;
+        padding: 0 0.65rem;
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .bfm-zoom-fit {
+        border-left: 1px solid #d8dee8;
+        padding: 0 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .bfm-shell.is-edit-mode .bfm-map-scroll {
+        height: clamp(430px, calc(100dvh - 265px), 720px);
+        min-height: 0;
+        max-height: none;
+        overflow: auto;
+        padding: 0.75rem;
+        text-align: center;
+    }
+
+    .bfm-shell.is-edit-mode .bfm-stage {
+        min-width: 0;
+        max-width: none;
+        overflow: visible;
+        background: transparent;
+        vertical-align: top;
+    }
+
+    .bfm-shell.is-edit-mode .bfm-blueprint {
+        width: auto;
+        max-width: none;
+        height: auto;
+    }
+
+    .bfm-shell.is-operations-mode {
+        --bfm-ops-map-height: clamp(360px, calc(100vh - 280px), 640px);
+        overflow: visible;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-body {
+        padding: 0;
+        background: transparent;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-map-card {
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        padding: 0;
+        box-shadow: none;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-body.has-panel {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .bfm-shell.is-operations-mode .bfm-map-scroll {
+        display: grid;
+        place-items: center;
+        height: var(--bfm-ops-map-height);
+        min-height: var(--bfm-ops-map-height);
+        max-height: var(--bfm-ops-map-height);
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        background: #fff;
+        padding: 0.75rem;
+        box-shadow: 0 10px 28px rgb(15 23 42 / 0.08);
+    }
+
+    .bfm-shell.is-operations-mode .bfm-stage {
+        min-width: 0;
+        width: fit-content;
+        max-width: 100%;
+        overflow: visible;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-blueprint {
+        width: auto;
+        height: auto;
+        max-width: 100%;
+        max-height: calc(var(--bfm-ops-map-height) - 1.5rem);
+        object-fit: contain;
+    }
+
+    @media (max-width: 1024px) {
+        .bfm-shell.is-operations-mode {
+            --bfm-ops-map-height: clamp(340px, calc(100vh - 320px), 560px);
+        }
     }
 
     .bfm-stage {
@@ -515,6 +728,13 @@
         transition: background 0.15s ease, border-color 0.15s ease;
     }
 
+    .bfm-shell.is-operations-mode .bfm-action {
+        min-height: 48px;
+        border-radius: 0.85rem;
+        padding: 0.72rem 0.8rem;
+        font-size: 0.84rem;
+    }
+
     .bfm-action:hover:not(:disabled) {
         border-color: #94a3b8;
         background: #f8fafc;
@@ -536,6 +756,48 @@
         border: 1px solid #d8dee8;
         background: #fff;
         color: #334155;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-panel:not([hidden]) {
+        position: fixed;
+        left: var(--bfm-popover-left, 50%);
+        top: var(--bfm-popover-top, 50%);
+        z-index: 95;
+        width: min(24.5rem, calc(100vw - 1.5rem));
+        max-height: min(70vh, var(--bfm-popover-max-height, 34rem));
+        overflow-y: auto;
+        border-radius: 1.1rem;
+        box-shadow: 0 22px 60px rgb(15 23 42 / 0.24);
+        animation: bfm-popover-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        transform-origin: center center;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-panel[data-placement="left"] {
+        transform-origin: right center;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-panel[data-placement="right"] {
+        transform-origin: left center;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-panel[data-placement="top"] {
+        transform-origin: center bottom;
+    }
+
+    .bfm-shell.is-operations-mode .bfm-panel[data-placement="bottom"] {
+        transform-origin: center top;
+    }
+
+    @keyframes bfm-popover-in {
+        from {
+            opacity: 0;
+            transform: translateY(6px) scale(0.985);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
     }
 
     .bfm-modal {

@@ -34,9 +34,9 @@
                             <i class="fa-solid fa-location-crosshairs text-[11px]" aria-hidden="true"></i>
                             Reset View
                         </button>
-                        <a href="{{ route('admin.tables', ['tab' => 'status']) }}" class="tc-admin-btn-primary inline-flex min-h-9 items-center justify-center gap-2 px-3 py-2 text-xs">
-                            <i class="fa-solid fa-table-cells text-[11px]" aria-hidden="true"></i>
-                            Open Table List
+                        <a href="{{ route('admin.tables') }}" class="tc-admin-btn-primary inline-flex min-h-9 items-center justify-center gap-2 px-3 py-2 text-xs">
+                            <i class="fa-solid fa-map-location-dot text-[11px]" aria-hidden="true"></i>
+                            Open Floor Map
                         </a>
                     </div>
                 </div>

@@ -9,6 +9,7 @@ use App\Models\Seat;
 use App\Models\Setting;
 use App\Models\Table;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class TableService
@@ -56,45 +57,173 @@ class TableService
         return $booking;
     }
 
-    public function release(int $tableId): void
+    public function checkIn(int $tableId): void
     {
-        $table = Table::findOrFail($tableId);
-        $table->release();
+        DB::transaction(function () use ($tableId) {
+            $table = Table::query()
+                ->with('booking')
+                ->lockForUpdate()
+                ->findOrFail($tableId);
 
-        Seat::where('table_id', $table->id)->update(['status' => $this->mapTableStatusToSeatStatus('cleaning')]);
+            $this->assertTransition($table, [Table::STATUS_RESERVED], 'check in');
 
-        Cache::forget('tables.venue.1');
-        app(QueueService::class)->refreshEstimatedWaits();
+            if ($table->booking_id === null || $table->booking === null) {
+                throw new \InvalidArgumentException('Only reserved tables with an online booking can be checked in.');
+            }
 
-        $this->dispatchNotifyNextAfterTableReleaseDelayed();
+            $partySize = max(1, (int) ($table->booking->party_size ?? $table->capacity));
+            $table->update([
+                'status' => Table::STATUS_OCCUPIED,
+                'occupied_at' => now(),
+                'occupied_party' => $partySize,
+                'cleaning_started_at' => null,
+            ]);
+
+            $table->booking->update(['checked_in_at' => now()]);
+            $this->syncSeats($table->id, Table::STATUS_OCCUPIED);
+        });
+
+        $this->afterTableChanged(Table::STATUS_OCCUPIED);
     }
 
-    public function override(int $tableId, string $status): void
+    public function noShow(int $tableId): void
     {
-        $payload = ['status' => $status];
+        DB::transaction(function () use ($tableId) {
+            $table = Table::query()
+                ->with('booking')
+                ->lockForUpdate()
+                ->findOrFail($tableId);
 
-        if ($status === 'available') {
-            $payload['cleaning_started_at'] = null;
-            $payload['booking_id'] = null;
-        } elseif ($status === 'cleaning') {
-            $payload['occupied_at'] = null;
-            $payload['occupied_party'] = null;
-            $t = Table::findOrFail($tableId);
-            $payload['cleaning_started_at'] = now()->copy()->addMicroseconds(min((int) $t->id, 999_999));
-        }
+            $this->assertTransition($table, [Table::STATUS_RESERVED], 'mark no-show');
 
-        $table = Table::findOrFail($tableId);
-        $table->update($payload);
+            if ($table->booking_id === null || $table->booking === null) {
+                throw new \InvalidArgumentException('Only reserved tables with an online booking can be marked no-show.');
+            }
 
-        Seat::where('table_id', $table->id)->update(['status' => $this->mapTableStatusToSeatStatus($status)]);
+            $table->booking->update([
+                'status' => 'cancelled',
+                'no_show_at' => now(),
+                'table_id' => null,
+            ]);
 
-        Cache::forget('tables.venue.1');
+            $table->update([
+                'status' => Table::STATUS_AVAILABLE,
+                'booking_id' => null,
+                'occupied_at' => null,
+                'occupied_party' => null,
+                'cleaning_started_at' => null,
+            ]);
 
-        if ($status === 'available') {
-            app(QueueService::class)->notifyNextAfterTableRelease();
-        } else {
-            app(QueueService::class)->refreshEstimatedWaits();
-        }
+            $this->syncSeats($table->id, Table::STATUS_AVAILABLE);
+        });
+
+        $this->afterTableChanged(Table::STATUS_AVAILABLE);
+    }
+
+    public function seatWalkIn(int $tableId): void
+    {
+        DB::transaction(function () use ($tableId) {
+            $table = Table::query()
+                ->lockForUpdate()
+                ->findOrFail($tableId);
+
+            if (! in_array($table->status, [Table::STATUS_AVAILABLE, Table::STATUS_RESERVED], true)) {
+                throw new \InvalidArgumentException('Walk-ins can only be seated at free tables.');
+            }
+
+            if ($table->booking_id !== null) {
+                throw new \InvalidArgumentException('This table has an online booking and cannot seat a walk-in.');
+            }
+
+            $table->update([
+                'status' => Table::STATUS_OCCUPIED,
+                'occupied_at' => now(),
+                'occupied_party' => max(1, (int) $table->capacity),
+                'cleaning_started_at' => null,
+            ]);
+
+            $this->syncSeats($table->id, Table::STATUS_OCCUPIED);
+        });
+
+        $this->afterTableChanged(Table::STATUS_OCCUPIED);
+    }
+
+    public function seatFromQueue(int $tableId, int $entryId): void
+    {
+        app(QueueService::class)->seat($entryId, $tableId);
+    }
+
+    public function sendToCleaning(int $tableId): void
+    {
+        DB::transaction(function () use ($tableId) {
+            $table = Table::query()
+                ->lockForUpdate()
+                ->findOrFail($tableId);
+
+            $this->assertTransition($table, [Table::STATUS_OCCUPIED], 'send to cleaning');
+
+            $table->update([
+                'status' => Table::STATUS_CLEANING,
+                'occupied_at' => null,
+                'occupied_party' => null,
+                'booking_id' => null,
+                'cleaning_started_at' => $this->cleaningStartedAt($table),
+            ]);
+
+            $this->syncSeats($table->id, Table::STATUS_CLEANING);
+        });
+
+        $this->afterTableChanged(Table::STATUS_CLEANING, delayedQueueNotice: true);
+    }
+
+    public function markFree(int $tableId): void
+    {
+        DB::transaction(function () use ($tableId) {
+            $table = Table::query()
+                ->lockForUpdate()
+                ->findOrFail($tableId);
+
+            $this->assertTransition($table, [Table::STATUS_OCCUPIED, Table::STATUS_CLEANING], 'mark free');
+
+            $table->update([
+                'status' => Table::STATUS_AVAILABLE,
+                'occupied_at' => null,
+                'occupied_party' => null,
+                'booking_id' => null,
+                'cleaning_started_at' => null,
+            ]);
+
+            $this->syncSeats($table->id, Table::STATUS_AVAILABLE);
+        });
+
+        $this->afterTableChanged(Table::STATUS_AVAILABLE);
+    }
+
+    public function releaseTable(int $tableId): void
+    {
+        DB::transaction(function () use ($tableId) {
+            $table = Table::query()
+                ->lockForUpdate()
+                ->findOrFail($tableId);
+
+            $this->assertTransition($table, [Table::STATUS_RESERVED], 'release table');
+
+            $table->update([
+                'status' => Table::STATUS_AVAILABLE,
+                'occupied_at' => null,
+                'occupied_party' => null,
+                'cleaning_started_at' => null,
+            ]);
+
+            $this->syncSeats($table->id, Table::STATUS_AVAILABLE);
+        });
+
+        $this->afterTableChanged(Table::STATUS_AVAILABLE);
+    }
+
+    public function release(int $tableId): void
+    {
+        $this->sendToCleaning($tableId);
     }
 
     public function releaseExpired(): int
@@ -121,19 +250,56 @@ class TableService
 
     public function markReadyAfterCleaning(int $tableId): void
     {
-        $this->override($tableId, 'available');
+        $this->markFree($tableId);
     }
 
     private function mapTableStatusToSeatStatus(string $tableStatus): string
     {
         return match ($tableStatus) {
-            'available' => 'free',
-            'reserved' => 'reserved',
-            'occupied' => 'occupied',
-            'cleaning' => 'cleaning',
-            'unavailable' => 'free',
-            default => 'free',
+            Table::STATUS_AVAILABLE => Seat::STATUS_FREE,
+            Table::STATUS_RESERVED => Seat::STATUS_RESERVED,
+            Table::STATUS_OCCUPIED => Seat::STATUS_OCCUPIED,
+            Table::STATUS_CLEANING => Seat::STATUS_CLEANING,
+            Table::STATUS_UNAVAILABLE => Seat::STATUS_FREE,
+            default => throw new \InvalidArgumentException('Invalid table status.'),
         };
+    }
+
+    private function syncSeats(int $tableId, string $tableStatus): void
+    {
+        Seat::where('table_id', $tableId)->update(['status' => $this->mapTableStatusToSeatStatus($tableStatus)]);
+    }
+
+    private function assertTransition(Table $table, array $allowedStatuses, string $action): void
+    {
+        if (! in_array($table->status, $allowedStatuses, true)) {
+            throw new \InvalidArgumentException("Cannot {$action} from {$table->status} status.");
+        }
+    }
+
+    private function cleaningStartedAt(Table $table): \Carbon\Carbon
+    {
+        return now()->copy()->addMicroseconds(min((int) $table->id, 999_999));
+    }
+
+    private function afterTableChanged(string $status, bool $delayedQueueNotice = false): void
+    {
+        Cache::forget('tables.venue.1');
+
+        if ($delayedQueueNotice) {
+            app(QueueService::class)->refreshEstimatedWaits();
+            $this->dispatchNotifyNextAfterTableReleaseDelayed();
+
+            return;
+        }
+
+        if ($status === Table::STATUS_AVAILABLE) {
+            app(QueueService::class)->notifyNextAfterTableRelease();
+
+            return;
+        }
+
+        app(QueueService::class)->refreshEstimatedWaits();
     }
 
     /**

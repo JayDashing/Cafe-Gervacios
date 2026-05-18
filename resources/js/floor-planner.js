@@ -633,12 +633,8 @@ class FloorPlanner {
                         <p class="text-sm font-semibold text-slate-800">${this.escape(guestText)}</p>
                     </div>
                     <div class="grid grid-cols-2 gap-2 lg:w-[360px]">
-                        <a href="${this.bookingsUrl}" class="fp-status-action inline-flex items-center justify-center text-center">
-                            Assign Booking
-                        </a>
                         ${table.booking ? `<a href="${this.bookingsUrl}?search=${encodeURIComponent(table.booking.ref || '')}" class="fp-status-action inline-flex items-center justify-center text-center">View Booking</a>` : ''}
                         ${this.statusButton('available', 'Mark Free', table)}
-                        ${this.statusButton('reserved', 'Mark Reserved', table)}
                         ${this.statusButton('occupied', 'Mark Occupied', table)}
                         ${this.statusButton('cleaning', 'Mark Cleaning', table)}
                         <button type="button" class="fp-status-action ${disabledClass}" data-panel-action="focus-name" ${editReadonly}>

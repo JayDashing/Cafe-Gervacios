@@ -197,12 +197,14 @@ class SeatingLayoutController extends Controller
                 'height' => self::plannerHeightFor($table, $thisShape),
                 'rotation' => (int) (($table->layout_rotation ?? 0) % 360),
                 'seat_count' => (int) $table->seats->count(),
+                'booking_id' => $table->booking_id ? (int) $table->booking_id : null,
                 'booking' => $booking ? [
                     'id' => $booking->id,
                     'ref' => $booking->booking_ref,
                     'guest' => $booking->customer_name,
                     'party' => (int) $booking->party_size,
                     'status' => $booking->status,
+                    'booked_at' => optional($booking->booked_at)->timezone(config('app.timezone'))->format('M d, g:i A'),
                 ] : null,
             ];
         })->values()->all();

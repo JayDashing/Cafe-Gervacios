@@ -19,19 +19,29 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         // Admin user
-        User::create([
-            'name' => 'Administrator',
-            'email' => 'admin@kiosk.test',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
-        ]);
+        User::firstOrCreate(
+            ['email' => 'admin@kiosk.test'],
+            [
+                'name' => 'Administrator',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+                'must_change_password' => false,
+                'password_changed_at' => now(),
+                'is_active' => true,
+            ],
+        );
 
         // Staff user
-        User::create([
-            'name' => 'Staff Member',
-            'email' => 'staff@kiosk.test',
-            'password' => Hash::make('password'),
-            'role' => 'staff',
-        ]);
+        User::firstOrCreate(
+            ['email' => 'staff@kiosk.test'],
+            [
+                'name' => 'Staff Member',
+                'password' => Hash::make('password'),
+                'role' => 'staff',
+                'must_change_password' => false,
+                'password_changed_at' => now(),
+                'is_active' => true,
+            ],
+        );
     }
 }

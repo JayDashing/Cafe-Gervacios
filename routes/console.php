@@ -5,6 +5,7 @@ use App\Models\QueueEntry;
 use App\Models\SmsLog;
 use App\Services\AutomationEngine;
 use App\Services\TableService;
+use App\Support\LocalDevelopmentAdmin;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\RateLimiter;
@@ -37,6 +38,25 @@ Artisan::command('auth:clear-lockouts {ip? : IP address to clear; defaults to lo
 
     return 0;
 })->purpose('Clear local/testing admin login rate limiter keys');
+
+Artisan::command('dev:reset-admin', function () {
+    if (! app()->environment(['local', 'testing'])) {
+        $this->error('dev:reset-admin is only available in local development.');
+
+        return 1;
+    }
+
+    // Development-only credentials.
+    LocalDevelopmentAdmin::ensure();
+
+    $this->line('---------------------------------');
+    $this->line('Local admin ready');
+    $this->line('Email: '.LocalDevelopmentAdmin::EMAIL);
+    $this->line('Password: '.LocalDevelopmentAdmin::PASSWORD);
+    $this->line('---------------------------------');
+
+    return 0;
+})->purpose('Reset the local development admin credentials');
 
 // Auto-release expired tables every 15 minutes
 Schedule::call(function () {

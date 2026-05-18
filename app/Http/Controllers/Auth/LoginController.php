@@ -7,6 +7,7 @@ use App\Models\AdminLog;
 use App\Models\User;
 use App\Notifications\SuspiciousLoginNotification;
 use App\Support\AdminRedirect;
+use App\Support\LocalDevelopmentAdmin;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -70,6 +71,7 @@ class LoginController extends Controller
         }
 
         $request->session()->regenerate();
+        $request->session()->put('admin_remembered_login', $request->boolean('remember'));
 
         AdminLog::record('login', null, null, 'Admin login successful');
 
@@ -78,6 +80,22 @@ class LoginController extends Controller
         if ($safe !== null) {
             return redirect($safe);
         }
+
+        return redirect()->route('admin.dashboard');
+    }
+
+    public function devLogin(Request $request): RedirectResponse
+    {
+        abort_unless(app()->environment(['local', 'testing']), 404);
+
+        // Development-only credentials.
+        $user = LocalDevelopmentAdmin::ensure();
+
+        Auth::login($user, true);
+        $request->session()->regenerate();
+        $request->session()->put('admin_remembered_login', true);
+
+        AdminLog::record('login', null, null, 'Local development admin login');
 
         return redirect()->route('admin.dashboard');
     }

@@ -17,6 +17,7 @@ class QueueEntry extends Model
         'queue_display_number',
         'customer_name',
         'customer_phone',
+        'customer_email',
         'party_size',
         'priority_type',
         'priority_score',

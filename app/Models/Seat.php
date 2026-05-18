@@ -7,6 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Seat extends Model
 {
+    public const STATUS_FREE = 'free';
+    public const STATUS_RESERVED = 'reserved';
+    public const STATUS_OCCUPIED = 'occupied';
+    public const STATUS_CLEANING = 'cleaning';
+
+    public const STATUSES = [
+        self::STATUS_FREE,
+        self::STATUS_RESERVED,
+        self::STATUS_OCCUPIED,
+        self::STATUS_CLEANING,
+    ];
+
     protected $fillable = [
         'table_id',
         'seat_index',

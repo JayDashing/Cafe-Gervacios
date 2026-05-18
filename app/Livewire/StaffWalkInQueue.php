@@ -12,6 +12,7 @@ use App\Rules\PhilippinePhone;
 use App\Services\BookingGuardService;
 use App\Services\PriorityService;
 use App\Services\QueueService;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class StaffWalkInQueue extends Component
@@ -22,6 +23,8 @@ class StaffWalkInQueue extends Component
 
     public string $customer_phone = '';
 
+    public string $customer_email = '';
+
     public $party_size = '2';
 
     public string $priority_type = 'none';
@@ -29,6 +32,29 @@ class StaffWalkInQueue extends Component
     public ?int $selectedTableId = null;
 
     public bool $modalMode = false;
+
+    public string $wizardStep = 'details';
+
+    public ?string $wizardAction = null;
+
+    public ?string $successTitle = null;
+
+    public ?string $successDetail = null;
+
+    /**
+     * @var array<int, array{label: string, value: string}>
+     */
+    public array $successSummary = [];
+
+    public int $tableRefreshVersion = 0;
+
+    #[On('tables-refresh')]
+    #[On('table-updated')]
+    public function refreshWalkInTableChoices(): void
+    {
+        $this->tableRefreshVersion++;
+        $this->clearInvalidSelectedTable();
+    }
 
     public function submitGuidedAction(): void
     {
@@ -39,12 +65,79 @@ class StaffWalkInQueue extends Component
                 return;
             }
 
-            $this->seatSelectedTable();
+            $this->seatSelectedTable(true);
 
             return;
         }
 
         $this->register();
+    }
+
+    public function continueToTableSelection(): void
+    {
+        $this->validatedWalkInDetails();
+        $this->wizardAction = $this->compatibleFreeTableCount() > 0 ? 'seat' : 'waitlist';
+        $this->wizardStep = 'selection';
+    }
+
+    public function continueToReview(?string $action = null): void
+    {
+        $this->validatedWalkInDetails();
+
+        $this->wizardAction = $action ?: ($this->compatibleFreeTableCount() > 0 ? 'seat' : 'waitlist');
+
+        if ($this->wizardAction === 'seat' && $this->selectedTableId === null) {
+            $this->toastError('Select an available table to seat guest.');
+
+            return;
+        }
+
+        $this->wizardStep = 'review';
+    }
+
+    public function backToGuestDetails(): void
+    {
+        $this->wizardStep = 'details';
+    }
+
+    public function backToTableSelection(): void
+    {
+        $this->wizardStep = 'selection';
+    }
+
+    public function confirmWizardAction(): void
+    {
+        $this->wizardAction = $this->selectedTableId !== null
+            ? 'seat'
+            : ($this->wizardAction ?: 'waitlist');
+
+        if ($this->wizardAction === 'seat') {
+            if ($this->selectedTableId === null) {
+                $this->toastError('Please select a free compatible table first.');
+
+                return;
+            }
+
+            $this->seatSelectedTable(true);
+
+            return;
+        }
+
+        $this->register();
+    }
+
+    public function finishWizard(): void
+    {
+        $this->dispatch('walk-in-registration-completed');
+    }
+
+    public function startAnotherWalkIn(): void
+    {
+        $this->resetWalkInForm();
+        $this->wizardStep = 'details';
+        $this->successTitle = null;
+        $this->successDetail = null;
+        $this->successSummary = [];
     }
 
     public function register(): void
@@ -65,12 +158,23 @@ class StaffWalkInQueue extends Component
 
         AdminLog::record('staff_queue_register', 'queue_entry', $entry->id, 'Walk-in registered at host');
 
-        $this->resetWalkInForm();
+        $this->dispatchOperationsRefresh('walkin-created');
+
+        $this->completeWalkInAction(
+            'Guest added to waitlist.',
+            'Queue #'.$entry->queue_display_number.' - Estimated wait: '.$entry->waitEstimateLabel().'.',
+            [
+                ['label' => 'Guest', 'value' => (string) $entry->customer_name],
+                ['label' => 'Queue', 'value' => '#'.(string) $entry->queue_display_number],
+                ['label' => 'Party', 'value' => (int) $entry->party_size.' guests'],
+                ['label' => 'ETA', 'value' => $entry->waitEstimateLabel()],
+                ['label' => 'Notify', 'value' => filled($entry->customer_email) ? 'Email' : (filled($entry->customer_phone) ? 'SMS' : 'Disabled')],
+            ]
+        );
         $this->toastSuccess('Added to queue. Ticket #'.$entry->queue_display_number);
-        $this->dispatch('walk-in-registration-completed');
     }
 
-    public function seatSelectedTable(): void
+    public function seatSelectedTable(bool $closeModalOnSuccess = false): void
     {
         $validated = $this->validatedWalkInDetails();
 
@@ -103,9 +207,20 @@ class StaffWalkInQueue extends Component
 
         AdminLog::record('staff_queue_seat_now', 'queue_entry', $entry->id, 'Walk-in seated from host floor map at '.$table->label);
 
-        $this->resetWalkInForm();
+        $this->dispatchOperationsRefresh('walkin-created', 'guest-seated');
+
+        $this->completeWalkInAction(
+            'Guest seated at '.$table->label.'.',
+            'Party of '.(int) $entry->party_size.' seated immediately.',
+            [
+                ['label' => 'Guest', 'value' => (string) $entry->customer_name],
+                ['label' => 'Party', 'value' => (int) $entry->party_size.' guests'],
+                ['label' => 'Table', 'value' => (string) $table->label],
+                ['label' => 'Notify', 'value' => filled($entry->customer_email) ? 'Email' : (filled($entry->customer_phone) ? 'SMS' : 'Disabled')],
+            ],
+            $closeModalOnSuccess
+        );
         $this->toastSuccess('Guest seated at table '.$table->label.'.');
-        $this->dispatch('walk-in-registration-completed');
     }
 
     public function selectTable(int $tableId): void
@@ -132,6 +247,18 @@ class StaffWalkInQueue extends Component
     public function clearSelectedTable(): void
     {
         $this->selectedTableId = null;
+    }
+
+    public function incrementPartySize(): void
+    {
+        $this->party_size = (string) min(20, $this->partySizeValue() + 1);
+        $this->clearInvalidSelectedTable();
+    }
+
+    public function decrementPartySize(): void
+    {
+        $this->party_size = (string) max(1, $this->partySizeValue() - 1);
+        $this->clearInvalidSelectedTable();
     }
 
     public function updatedPartySize(): void
@@ -173,10 +300,12 @@ class StaffWalkInQueue extends Component
     {
         $this->customer_name = trim($this->customer_name);
         $this->customer_phone = trim($this->customer_phone);
+        $this->customer_email = trim($this->customer_email);
 
         return $this->validate([
             'customer_name' => ['required', 'string', 'max:255', 'regex:/^[a-zA-Z\s\-\.]+$/'],
             'customer_phone' => ['nullable', new PhilippinePhone],
+            'customer_email' => ['nullable', 'email', 'max:255'],
             'party_size' => ['required', 'integer', 'min:1', 'max:20'],
             'priority_type' => ['required', 'in:none,pwd,pregnant,senior'],
         ], [
@@ -211,15 +340,50 @@ class StaffWalkInQueue extends Component
             (int) $validated['party_size'],
             $this->priority_type,
             'staff',
-            'desktop'
+            'desktop',
+            $this->customer_email
         );
     }
 
     private function resetWalkInForm(): void
     {
-        $this->reset(['customer_name', 'customer_phone', 'party_size', 'priority_type', 'selectedTableId']);
+        $this->reset(['customer_name', 'customer_phone', 'customer_email', 'party_size', 'priority_type', 'selectedTableId', 'wizardAction']);
         $this->party_size = '2';
         $this->priority_type = 'none';
+    }
+
+    /**
+     * @param  array<int, array{label: string, value: string}>  $summary
+     */
+    private function completeWalkInAction(string $title, string $detail, array $summary = [], bool $closeModal = false): void
+    {
+        $this->resetWalkInForm();
+
+        if ($this->modalMode && ! $closeModal) {
+            $this->wizardStep = 'success';
+            $this->successTitle = $title;
+            $this->successDetail = $detail;
+            $this->successSummary = $summary;
+
+            return;
+        }
+
+        $this->dispatch('walk-in-registration-completed');
+    }
+
+    private function dispatchOperationsRefresh(string ...$extraEvents): void
+    {
+        $events = array_unique([
+            'queue-updated',
+            'tables-refresh',
+            'table-updated',
+            'eta-recalculated',
+            ...$extraEvents,
+        ]);
+
+        foreach ($events as $event) {
+            $this->dispatch($event);
+        }
     }
 
     private function clearInvalidSelectedTable(): void

@@ -52,7 +52,7 @@ return [
     'philsms' => [
         'api_key' => env('PHILSMS_API_KEY'),
         'sender_id' => env('PHILSMS_SENDER_ID', 'CafeGervacios'),
-        'endpoint' => env('PHILSMS_ENDPOINT', 'https://app.philsms.com/api/v3/sms/send'),
+        'endpoint' => env('PHILSMS_ENDPOINT', 'https://dashboard.philsms.com/api/v3/sms/send'),
     ],
 
 ];

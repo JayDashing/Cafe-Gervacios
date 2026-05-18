@@ -31,9 +31,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(\App\Http\Middleware\NormalizeRequestPath::class);
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
-        $middleware->validateCsrfTokens(except: [
+        $csrfExcept = [
             'webhook/paymongo',
-        ]);
+        ];
+
+        if (env('APP_ENV') === 'local') {
+            // Development-only convenience: stale browser tabs should not block local admin login with a 419.
+            $csrfExcept[] = 'admin/login';
+            $csrfExcept[] = 'admin/dev-login';
+        }
+
+        $middleware->validateCsrfTokens(except: $csrfExcept);
     })
     ->booted(function () {
         RateLimiter::for('reservation', function (Request $request) {
@@ -44,8 +52,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         RateLimiter::for('admin-login', function (Request $request) {
             if (app()->environment(['local', 'testing'])) {
-                // Development/testing only: keep credential checks intact while avoiding long lockouts during repeated manual login testing.
-                return Limit::perMinute(50)->by($request->ip())->response(function () {
+                // Development/testing only: keep credential checks intact while avoiding lockout friction during repeated manual login testing.
+                return Limit::perMinute(200)->by($request->ip())->response(function () {
                     return back()->withErrors(['email' => 'Too many login attempts. Please retry in a few seconds.']);
                 });
             }

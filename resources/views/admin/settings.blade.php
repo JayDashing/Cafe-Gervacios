@@ -1,17 +1,17 @@
 @extends('layouts.admin')
 
-@section('page_title', 'Settings')
+@php
+    $isAutomationSection = request()->query('section') === 'automation';
+@endphp
+
+@section('page_title', $isAutomationSection ? 'Automation' : 'Settings')
 
 @section('panel_heading')
-    <x-admin-panel-heading title="Settings" />
+    <x-admin-panel-heading :title="$isAutomationSection ? 'Automation' : 'Settings'" />
 @endsection
 
-@push('scripts')
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
-@endpush
-
 @section('content')
-    <div class="-mx-4 flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4 rounded-xl bg-panel-surface px-4 py-4 md:-mx-5 md:px-5 md:py-5">
+    <div class="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1 flex-col gap-4">
         @if (auth()->user()->isAdmin())
             <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">
