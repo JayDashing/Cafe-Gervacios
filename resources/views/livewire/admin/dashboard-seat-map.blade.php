@@ -469,7 +469,7 @@
                     </div>
                 </details>
                 @if (auth()->user()->isAdmin())
-                    <a href="{{ route('admin.seating-layout') }}"
+                    <a href="{{ route('admin.tables', ['edit' => 1]) }}"
                         class="inline-flex items-center gap-1.5 rounded-full bg-panel-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-panel-primary-hover">
                         Edit Blueprint
                         <i class="fa-solid fa-arrow-right text-[10px] opacity-90" aria-hidden="true"></i>

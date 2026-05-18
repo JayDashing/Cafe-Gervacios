@@ -44,20 +44,21 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->assertSee('Floor Map')
             ->assertSee('Calendar')
             ->assertSee('Edit Layout')
-            ->assertSee(route('admin.seating-layout'), false)
+            ->assertSee(route('admin.tables', ['edit' => 1]), false)
             ->assertSeeHtml('data-blueprint-floor-map')
             ->assertSeeHtml('data-operations-mode="false"')
             ->assertDontSee('Table List');
     }
 
-    public function test_full_layout_editor_exposes_grouping_and_delete_tools(): void
+    public function test_current_floor_map_editor_exposes_grouping_and_delete_apis(): void
     {
         $this->actingAs($this->admin())
-            ->get(route('admin.seating-layout'))
+            ->get(route('admin.tables', ['edit' => 1]))
             ->assertOk()
-            ->assertSee('Selection')
-            ->assertSee('Group as table')
-            ->assertSee('Danger zone: remove from map');
+            ->assertSee('Add Table Marker')
+            ->assertSee('Merge Tables')
+            ->assertSeeHtml('data-api-group="'.route('admin.api.seats.group').'"')
+            ->assertSeeHtml('data-api-delete="'.route('admin.api.seats.delete').'"');
     }
 
     public function test_admin_can_place_table_and_invalid_coordinates_are_rejected(): void

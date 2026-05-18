@@ -128,6 +128,8 @@ class BlueprintFloorMap {
         this.apiTables = root.dataset.apiTables;
         this.apiStatus = root.dataset.apiStatus;
         this.apiMergeGroups = root.dataset.apiMergeGroups;
+        this.apiGroup = root.dataset.apiGroup;
+        this.apiUnmerge = root.dataset.apiUnmerge;
         this.apiPlace = root.dataset.apiPlace;
         this.apiUpdate = root.dataset.apiUpdate;
         this.apiDelete = root.dataset.apiDelete;
@@ -167,7 +169,9 @@ class BlueprintFloorMap {
             ...table,
             id: Number(table.id),
             seat_id: Number(table.seat_id || 0),
+            seat_ids: Array.isArray(table.seat_ids) ? table.seat_ids.map((id) => Number(id)).filter(Boolean) : [],
             capacity: Number(table.capacity || 1),
+            seat_count: Number(table.seat_count || 1),
             status: normalizeStatus(table.status),
             x,
             y,
@@ -391,6 +395,7 @@ class BlueprintFloorMap {
                     id: Number(row.id),
                     label: String(row.label || existing?.label || ''),
                     capacity: Number(row.capacity || existing?.capacity || 1),
+                    seat_count: Number(row.seat_count || existing?.seat_count || 1),
                     status: normalizeStatus(row.status || existing?.status),
                     x: existing ? existing.x : fallbackX,
                     y: existing ? existing.y : fallbackY,
@@ -1242,6 +1247,9 @@ class BlueprintFloorMap {
     }
 
     editPanelHtml(table) {
+        const seatCount = Math.max(1, Number(table.seat_count || 1));
+        const canSplit = this.editMode && this.apiUnmerge && seatCount > 1;
+
         return `
             <div class="grid gap-3 p-4">
                 <div class="flex items-start justify-between gap-3">
@@ -1253,17 +1261,17 @@ class BlueprintFloorMap {
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                     </button>
                 </div>
-                <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <span class="bfm-field-label mb-1">Table Name</span>
-                    <strong class="block text-xl font-black tracking-tight text-slate-950">${escapeHtml(table.label)}</strong>
-                    <p class="mt-1 text-xs font-medium leading-snug text-slate-500">System-generated identifier. It cannot be renamed.</p>
-                </div>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                        <label class="bfm-field-label">Capacity</label>
-                        <input class="bfm-input" type="number" min="1" max="99" data-edit-field="capacity" value="${Number(table.capacity)}">
+                        <label class="bfm-field-label">Table Name</label>
+                        <input class="bfm-input" type="text" maxlength="50" data-edit-field="label" value="${escapeHtml(table.label)}">
                     </div>
                     <div>
+                        <label class="bfm-field-label">Capacity</label>
+                        <input class="bfm-input" type="number" min="${seatCount}" max="99" data-edit-field="capacity" value="${Number(table.capacity)}">
+                        <p class="mt-1 text-[11px] font-medium text-slate-500">Minimum: ${seatCount} mapped ${seatCount === 1 ? 'seat' : 'seats'}.</p>
+                    </div>
+                    <div class="sm:col-span-2">
                         <label class="bfm-field-label">Shape / type</label>
                         <select class="bfm-input" data-edit-field="type">
                             ${this.typeOptions(table.furniture_type)}
@@ -1274,9 +1282,27 @@ class BlueprintFloorMap {
                     <button type="button" class="tc-admin-btn-primary min-h-10 px-4 py-2 text-sm" data-panel-action="save-marker">
                         Save Marker
                     </button>
-                    <button type="button" class="bfm-action border-rose-200 bg-rose-50 text-rose-800" data-panel-action="delete-marker">
-                        Delete Marker
+                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-blueprint-action="start-merge">
+                        Merge Tables
                     </button>
+                </div>
+                ${canSplit ? `
+                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="unmerge-table">
+                        Split Tables
+                    </button>
+                ` : ''}
+                <div class="rounded-xl border border-rose-200 bg-rose-50/40 p-3">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-rose-900">Danger zone</p>
+                    <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        ${seatCount > 1 ? `
+                            <button type="button" class="bfm-action border-rose-200 bg-white text-rose-800" data-panel-action="delete-seat">
+                                Remove One Seat
+                            </button>
+                        ` : ''}
+                        <button type="button" class="bfm-action border-rose-200 bg-white text-rose-800" data-panel-action="delete-marker">
+                            Remove Whole Table
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -1438,8 +1464,14 @@ class BlueprintFloorMap {
                 if (action === 'save-marker') {
                     this.saveSelectedMarker();
                 }
+                if (action === 'delete-seat') {
+                    this.deleteSelectedSeat();
+                }
                 if (action === 'delete-marker') {
                     this.deleteSelectedMarker();
+                }
+                if (action === 'unmerge-table') {
+                    this.unmergePhysicalTable();
                 }
                 if (action === 'seat-waitlist') {
                     const tableId = Number(button.dataset.panelTableId || tableIds[0] || 0);
@@ -1613,8 +1645,14 @@ class BlueprintFloorMap {
         const table = this.selectedTableId ? this.table(this.selectedTableId) : null;
         if (!table?.seat_id || !this.apiUpdate || !this.panel) return;
 
+        const label = String(this.panel.querySelector('[data-edit-field="label"]')?.value || '').trim();
         const capacity = Number(this.panel.querySelector('[data-edit-field="capacity"]')?.value || 1);
         const furnitureType = String(this.panel.querySelector('[data-edit-field="type"]')?.value || 'standard');
+
+        if (!label) {
+            notify('error', 'Enter a table name.');
+            return;
+        }
 
         if (Number.isNaN(capacity) || capacity < 1) {
             notify('error', 'Enter a valid capacity.');
@@ -1624,18 +1662,44 @@ class BlueprintFloorMap {
         try {
             await axios.post(this.apiUpdate, {
                 seat_id: table.seat_id,
+                label,
                 capacity,
                 furniture_type: furnitureType,
             }, {
                 headers: { Accept: 'application/json' },
             });
 
+            table.label = label;
             table.capacity = capacity;
             table.furniture_type = furnitureType;
             this.render();
             notify('success', 'Marker saved.');
         } catch (error) {
             notify('error', firstError(error, 'Could not save marker'));
+        }
+    }
+
+    async deleteSelectedSeat() {
+        const table = this.selectedTableId ? this.table(this.selectedTableId) : null;
+        if (!table?.seat_id || !this.apiDelete) return;
+        if (Number(table.seat_count || 1) <= 1) {
+            notify('error', 'This table only has one mapped seat.');
+            return;
+        }
+        if (!window.confirm(`Remove one mapped seat from ${table.label}?`)) return;
+
+        try {
+            await axios.post(this.apiDelete, {
+                seat_id: table.seat_id,
+                scope: 'seat',
+            }, {
+                headers: { Accept: 'application/json' },
+            });
+
+            notify('success', 'Seat removed.');
+            window.location.reload();
+        } catch (error) {
+            notify('error', firstError(error, 'Could not remove seat'));
         }
     }
 
@@ -1666,6 +1730,25 @@ class BlueprintFloorMap {
             notify('success', 'Marker deleted.');
         } catch (error) {
             notify('error', firstError(error, 'Could not delete marker'));
+        }
+    }
+
+    async unmergePhysicalTable() {
+        const table = this.selectedTableId ? this.table(this.selectedTableId) : null;
+        if (!table?.seat_id || !this.apiUnmerge) return;
+        if (!window.confirm(`Split ${table.label} into separate table markers?`)) return;
+
+        try {
+            await axios.post(this.apiUnmerge, {
+                seat_id: table.seat_id,
+            }, {
+                headers: { Accept: 'application/json' },
+            });
+
+            notify('success', 'Tables split.');
+            window.location.reload();
+        } catch (error) {
+            notify('error', firstError(error, 'Could not split table'));
         }
     }
 
@@ -1734,10 +1817,46 @@ class BlueprintFloorMap {
             return;
         }
 
-        const bookingId = Number(this.mergeModal?.querySelector('[data-merge-field="booking"]')?.value || 0);
-        const booking = this.bookings.find((item) => Number(item.id) === bookingId) || null;
         const label = String(this.mergeModal?.querySelector('[data-merge-field="label"]')?.value || '').trim()
             || ids.map((id) => this.table(id)?.label).filter(Boolean).join(' + ');
+
+        if (this.editMode && this.apiGroup) {
+            const seatIds = ids.flatMap((id) => {
+                const table = this.table(id);
+                if (Array.isArray(table?.seat_ids) && table.seat_ids.length > 0) {
+                    return table.seat_ids;
+                }
+
+                return table?.seat_id ? [table.seat_id] : [];
+            }).map(Number).filter(Boolean);
+
+            if (seatIds.length < 2) {
+                notify('error', 'Select two or more table markers to merge.');
+                return;
+            }
+
+            try {
+                await axios.post(this.apiGroup, {
+                    seat_ids: seatIds,
+                    label,
+                }, {
+                    headers: { Accept: 'application/json' },
+                });
+
+                this.selectedIds.clear();
+                this.selectionMode = false;
+                this.closeMergeModal();
+                notify('success', 'Tables grouped.');
+                window.location.reload();
+            } catch (error) {
+                notify('error', firstError(error, 'Could not group tables'));
+            }
+
+            return;
+        }
+
+        const bookingId = Number(this.mergeModal?.querySelector('[data-merge-field="booking"]')?.value || 0);
+        const booking = this.bookings.find((item) => Number(item.id) === bookingId) || null;
 
         const nextGroup = {
             id: `daily-${Date.now()}`,

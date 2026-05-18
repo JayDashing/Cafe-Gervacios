@@ -50,7 +50,7 @@
                 Calendar
             </button>
             @if (auth()->user()?->isAdmin())
-                <a href="{{ route('admin.seating-layout') }}"
+                <a href="{{ route('admin.tables', ['edit' => 1]) }}"
                     class="tc-admin-btn-primary inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2 text-sm"
                     x-show="tab === 'floor'"
                     x-cloak>

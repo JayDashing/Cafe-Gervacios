@@ -30,6 +30,7 @@
         return [
             'id' => (int) $table->id,
             'seat_id' => (int) $firstSeat?->id,
+            'seat_ids' => $group->seats->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
             'label' => (string) $table->label,
             'capacity' => (int) $table->capacity,
             'status' => (string) $table->status,
@@ -79,6 +80,8 @@
     data-api-tables="{{ route('admin.api.tables.operations') }}"
     data-api-status="{{ route('admin.api.tables.operations.status') }}"
     data-api-merge-groups="{{ route('admin.api.tables.operations.merge-groups') }}"
+    data-api-group="{{ $canEditBlueprint ? route('admin.api.seats.group') : '' }}"
+    data-api-unmerge="{{ $canEditBlueprint ? route('admin.api.seats.unmerge') : '' }}"
     data-api-place="{{ $canEditBlueprint ? route('admin.api.seats.place') : '' }}"
     data-api-update="{{ $canEditBlueprint ? route('admin.api.seats.update') : '' }}"
     data-api-delete="{{ $canEditBlueprint ? route('admin.api.seats.delete') : '' }}"
@@ -160,7 +163,7 @@
                             Add the cafe floor image in Edit Layout, then place table markers on top of it.
                         </p>
                         @if ($canEditBlueprint && ! $editMode)
-                            <a href="{{ route('admin.seating-layout') }}"
+                            <a href="{{ route('admin.tables', ['edit' => 1]) }}"
                                 class="tc-admin-btn-primary mt-4 inline-flex min-h-10 items-center justify-center gap-2 px-4 py-2 text-sm">
                                 <i class="fa-solid fa-pen-ruler text-xs" aria-hidden="true"></i>
                                 Edit Layout
