@@ -28,6 +28,8 @@ class StaffWalkInQueue extends Component
 
     public ?int $selectedTableId = null;
 
+    public bool $modalMode = false;
+
     public function register(): void
     {
         $validated = $this->validatedWalkInDetails();
@@ -48,6 +50,7 @@ class StaffWalkInQueue extends Component
 
         $this->resetWalkInForm();
         $this->toastSuccess('Added to queue. Ticket #'.$entry->queue_display_number);
+        $this->dispatch('walk-in-registration-completed');
     }
 
     public function seatSelectedTable(): void
@@ -85,6 +88,7 @@ class StaffWalkInQueue extends Component
 
         $this->resetWalkInForm();
         $this->toastSuccess('Guest seated at table '.$table->label.'.');
+        $this->dispatch('walk-in-registration-completed');
     }
 
     public function selectTable(int $tableId): void

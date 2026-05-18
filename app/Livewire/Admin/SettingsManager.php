@@ -485,9 +485,12 @@ class SettingsManager extends Component
         ]);
 
         try {
-            Bus::dispatchSync(new SendSmsJob($this->adminAlertPhone, 'admin_sms_test', [
-                'venue' => config('app.name', 'Cafe Gervacios'),
-            ]));
+            Bus::dispatchSync(new SendSmsJob(
+                $this->adminAlertPhone,
+                'admin_sms_test',
+                ['venue' => config('app.name', 'Cafe Gervacios')],
+                true
+            ));
         } catch (\Throwable $e) {
             $this->philSmsTestMessage = $e->getMessage();
             $this->philSmsTestStatus = 'error';

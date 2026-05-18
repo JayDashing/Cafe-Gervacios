@@ -46,7 +46,8 @@ class SendSmsJob implements ShouldQueue
     public function __construct(
         private string $phone,
         private string $template,
-        private array $vars
+        private array $vars,
+        private bool $throwOnFailure = false
     ) {
     }
 
@@ -57,7 +58,19 @@ class SendSmsJob implements ShouldQueue
      */
     public function handle(NotificationService $service): void
     {
-        $service->sendSms($this->phone, $this->template, $this->vars);
+        try {
+            $service->sendSms($this->phone, $this->template, $this->vars);
+        } catch (\Throwable $e) {
+            Log::error('SMS send failed', [
+                'phone_prefix' => substr($this->phone, 0, 5).'***',
+                'template' => $this->template,
+                'error' => $e->getMessage(),
+            ]);
+
+            if ($this->throwOnFailure) {
+                throw $e;
+            }
+        }
     }
 
     /**

@@ -187,6 +187,42 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->assertSeeHtml('x-on:click.stop="detailsOpen = true"');
     }
 
+    public function test_waitlist_page_opens_walk_in_registration_as_modal(): void
+    {
+        Livewire::actingAs($this->user('admin'))
+            ->test(WaitlistPanel::class)
+            ->assertSee('Add Walk-in')
+            ->assertDontSee('Register Walk-in')
+            ->call('openWalkInModal')
+            ->assertSet('showWalkInModal', true)
+            ->assertSee('Register Walk-in')
+            ->assertSee('Selected Table')
+            ->assertSee('Floor Map')
+            ->assertSee('Add to queue')
+            ->assertSee('Seat selected table')
+            ->call('closeWalkInModal')
+            ->assertSet('showWalkInModal', false)
+            ->assertDontSee('Register Walk-in');
+    }
+
+    public function test_waitlist_page_closes_walk_in_modal_after_registration_event(): void
+    {
+        Livewire::actingAs($this->user('admin'))
+            ->test(WaitlistPanel::class)
+            ->call('openWalkInModal')
+            ->assertSet('showWalkInModal', true)
+            ->call('completeWalkInRegistration')
+            ->assertSet('showWalkInModal', false)
+            ->assertDispatched('tables-refresh');
+    }
+
+    public function test_legacy_staff_queue_route_returns_to_waitlist_management(): void
+    {
+        $this->actingAs($this->user('staff'))
+            ->get(route('staff.queue'))
+            ->assertRedirect(route('admin.waitlist'));
+    }
+
     public function test_eta_is_zero_only_when_guest_has_immediate_compatible_table(): void
     {
         $this->table(capacity: 4, status: 'available');

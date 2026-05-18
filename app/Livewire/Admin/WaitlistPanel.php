@@ -35,6 +35,10 @@ class WaitlistPanel extends Component
 
     public bool $showBusyHoursModal = false;
 
+    public bool $showWalkInModal = false;
+
+    public int $walkInModalKey = 0;
+
     public string $activeTab = 'waiting';
 
     public string $search = '';
@@ -79,6 +83,26 @@ class WaitlistPanel extends Component
     public function closeSeatQuickPick(): void
     {
         $this->seatQuickPickEntryId = null;
+    }
+
+    public function openWalkInModal(): void
+    {
+        $this->ensureStaff();
+        $this->showWalkInModal = true;
+    }
+
+    public function closeWalkInModal(): void
+    {
+        $this->showWalkInModal = false;
+        $this->walkInModalKey++;
+    }
+
+    #[On('walk-in-registration-completed')]
+    public function completeWalkInRegistration(): void
+    {
+        $this->showWalkInModal = false;
+        $this->walkInModalKey++;
+        $this->dispatch('tables-refresh');
     }
 
     public function seatFromQuickPick(int $entryId, int $tableId): void

@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Livewire\StaffWalkInQueue;
+use App\Jobs\SendSmsJob;
 use App\Models\QueueEntry;
 use App\Models\Seat;
 use App\Models\Setting;
 use App\Models\Table;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -18,6 +20,8 @@ class StaffWalkInQueueTest extends TestCase
 
     public function test_staff_can_register_walk_in_with_valid_details(): void
     {
+        Queue::fake([SendSmsJob::class]);
+
         $user = User::factory()->create([
             'role' => 'staff',
             'is_active' => true,
@@ -40,7 +44,8 @@ class StaffWalkInQueueTest extends TestCase
             ->set('priority_type', 'none')
             ->call('register')
             ->assertHasNoErrors()
-            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1');
+            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1')
+            ->assertDispatched('walk-in-registration-completed');
 
         $this->assertSame(1, QueueEntry::count());
 
@@ -58,6 +63,8 @@ class StaffWalkInQueueTest extends TestCase
 
     public function test_pwd_walk_in_displays_estimated_wait_after_registration(): void
     {
+        Queue::fake([SendSmsJob::class]);
+
         $user = User::factory()->create([
             'role' => 'staff',
             'is_active' => true,
@@ -80,7 +87,8 @@ class StaffWalkInQueueTest extends TestCase
             ->set('priority_type', 'pwd')
             ->call('register')
             ->assertHasNoErrors()
-            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1');
+            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1')
+            ->assertDispatched('walk-in-registration-completed');
 
         $entry = QueueEntry::firstOrFail();
         $this->assertSame('pwd', $entry->priority_type);
@@ -111,7 +119,8 @@ class StaffWalkInQueueTest extends TestCase
             ->call('register')
             ->assertHasNoErrors()
             ->assertSet('selectedTableId', null)
-            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1');
+            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1')
+            ->assertDispatched('walk-in-registration-completed');
 
         $entry = QueueEntry::firstOrFail();
         $this->assertSame('waiting', $entry->status);
@@ -154,7 +163,8 @@ class StaffWalkInQueueTest extends TestCase
             ->call('seatSelectedTable')
             ->assertHasNoErrors()
             ->assertSet('selectedTableId', null)
-            ->assertDispatched('notify', type: 'success', message: 'Guest seated at table T1.');
+            ->assertDispatched('notify', type: 'success', message: 'Guest seated at table T1.')
+            ->assertDispatched('walk-in-registration-completed');
 
         $entry = QueueEntry::firstOrFail();
         $this->assertSame('seated', $entry->status);

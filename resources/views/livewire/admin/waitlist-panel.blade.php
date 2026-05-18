@@ -41,11 +41,11 @@
                 Override {{ $peakOverrideOn ? 'On' : 'Off' }}
             </button>
         </div>
-        <a href="{{ route('staff.queue') }}"
+        <button type="button" wire:click="openWalkInModal"
             class="tc-admin-btn-primary inline-flex min-h-9 items-center justify-center gap-2 px-3 py-2 text-xs">
             <i class="fa-solid fa-plus text-[10px]" aria-hidden="true"></i>
             Add Walk-in
-        </a>
+        </button>
     </div>
 
     @if ($tone !== 'ok')
@@ -298,6 +298,28 @@
             @endforelse
         </div>
     </section>
+
+    @if ($showWalkInModal)
+        <div class="fixed inset-0 z-[140] flex items-end justify-center bg-slate-950/55 p-3 sm:items-center sm:p-4"
+            role="dialog" aria-modal="true" aria-labelledby="walkin-modal-title" wire:click.self="closeWalkInModal">
+            <div class="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+                    <div>
+                        <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Waitlist Management</p>
+                        <h3 id="walkin-modal-title" class="mt-0.5 text-base font-bold text-slate-950">Register Walk-in</h3>
+                    </div>
+                    <button type="button" wire:click="closeWalkInModal"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                        aria-label="Close Register Walk-in modal">
+                        <i class="fa-solid fa-xmark text-sm" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 tc-scrollbar">
+                    @livewire('staff-walk-in-queue', ['modalMode' => true], key('walk-in-modal-' . $walkInModalKey))
+                </div>
+            </div>
+        </div>
+    @endif
 
     @if ($showBusyHoursModal)
         <div class="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4" wire:click.self="closeBusyHoursModal">

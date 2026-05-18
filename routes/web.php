@@ -78,7 +78,7 @@ Route::get('/kiosk/{any}', fn () => redirect('/'))->where('any', '.*');
 */
 
 Route::middleware(['auth', 'staff'])->prefix('staff')->name('staff.')->group(function () {
-    Route::get('/queue', fn () => view('staff.queue'))->name('queue');
+    Route::get('/queue', fn () => redirect()->route('admin.waitlist'))->name('queue');
     Route::get('/admin/profile', [StaffProfileController::class, 'index'])->name('profile');
     Route::post('/admin/profile', [StaffProfileController::class, 'update'])->name('profile.update');
 });

@@ -1,8 +1,9 @@
-<div class="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-panel-canvas">
+<div class="{{ $modalMode ? 'w-full' : 'flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-panel-canvas' }}">
     <div
-        class="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden tc-scrollbar px-4 py-4 sm:px-6 sm:py-5">
-        <div class="mx-auto w-full max-w-5xl">
+        class="{{ $modalMode ? 'w-full' : 'flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden tc-scrollbar px-4 py-4 sm:px-6 sm:py-5' }}">
+        <div class="{{ $modalMode ? 'w-full' : 'mx-auto w-full max-w-5xl' }}">
             {{-- Compact local header bar (replaces duplicate app header title) --}}
+            @unless ($modalMode)
             <div
                 class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-100 pb-3 sm:mb-4 sm:pb-3">
                 <a href="{{ route('admin.dashboard') }}"
@@ -13,6 +14,7 @@
                 <span class="select-none text-slate-300" aria-hidden="true">/</span>
                 <h2 class="text-[15px] font-semibold leading-tight text-slate-900">Register walk-in</h2>
             </div>
+            @endunless
 
             <div class="grid gap-4 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
                 <div class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
@@ -150,6 +152,7 @@
                 </div>
             </div>
 
+            @unless ($modalMode)
             <div class="mt-4 rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -211,6 +214,7 @@
                     </p>
                 @endif
             </div>
+            @endunless
         </div>
     </div>
 
