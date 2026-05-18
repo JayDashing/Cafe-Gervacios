@@ -814,6 +814,9 @@ class BlueprintFloorMap {
 
                 <div class="grid grid-cols-2 gap-2">
                     <a href="${this.bookingsUrl}" class="bfm-action">Assign Booking</a>
+                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="seat-waitlist" data-panel-table-id="${tables[0]?.id || ''}">
+                        Seat Waitlist Guest
+                    </button>
                     ${group.booking_ref ? `<a href="${this.bookingsUrl}?search=${encodeURIComponent(group.booking_ref)}" class="bfm-action">View Booking</a>` : ''}
                     ${this.statusButton('available', 'Mark Free')}
                     ${this.statusButton('reserved', 'Mark Reserved')}
@@ -866,6 +869,9 @@ class BlueprintFloorMap {
 
                 <div class="grid grid-cols-2 gap-2">
                     <a href="${this.bookingsUrl}" class="bfm-action">Assign Booking</a>
+                    <button type="button" class="bfm-action border-sky-200 bg-sky-50 text-sky-800" data-panel-action="seat-waitlist" data-panel-table-id="${Number(table.id)}">
+                        Seat Waitlist Guest
+                    </button>
                     ${booking ? `<a href="${this.bookingsUrl}?search=${encodeURIComponent(booking.ref || '')}" class="bfm-action">View Booking</a>` : ''}
                     ${this.statusButton('available', 'Mark Free', table)}
                     ${this.statusButton('reserved', 'Mark Reserved', table)}
@@ -958,6 +964,21 @@ class BlueprintFloorMap {
                 }
                 if (action === 'delete-marker') {
                     this.deleteSelectedMarker();
+                }
+                if (action === 'seat-waitlist') {
+                    const tableId = Number(button.dataset.panelTableId || tableIds[0] || 0);
+                    if (!tableId) {
+                        notify('error', 'Choose a table marker first.');
+                        return;
+                    }
+                    if (typeof window.Livewire?.dispatch !== 'function') {
+                        notify('error', 'Waitlist actions are not ready yet.');
+                        return;
+                    }
+                    window.Livewire.dispatch('floor-map-seat-waitlist-guest', { tableId });
+                    this.selectedTableId = tableId;
+                    this.selectedGroupId = null;
+                    this.render();
                 }
             });
         });
@@ -1305,6 +1326,9 @@ class BlueprintFloorMap {
             }
 
             this.render();
+            if (typeof window.Livewire?.dispatch === 'function') {
+                window.Livewire.dispatch('tables-refresh');
+            }
             notify('success', tableIds.length > 1 ? 'Merged tables updated.' : `Table marked ${statusLabel(status).toLowerCase()}.`);
         } catch (error) {
             notify('error', firstError(error, 'Could not update table status'));

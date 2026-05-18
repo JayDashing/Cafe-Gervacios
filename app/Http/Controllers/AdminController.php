@@ -172,9 +172,17 @@ class AdminController extends Controller
     /**
      * Display the waitlist management page.
      */
-    public function waitlist()
+    public function waitlist(Request $request)
     {
-        return view('admin.waitlist');
+        $tableIds = Table::query()->pluck('id')->all();
+
+        return view('admin.waitlist', array_merge(
+            SeatingLayoutController::layoutData(),
+            [
+                'dailyMergeGroups' => SeatingLayoutController::plannerMergeGroups($tableIds),
+            ],
+            $this->floorMapOperationsData($request),
+        ));
     }
 
     /**

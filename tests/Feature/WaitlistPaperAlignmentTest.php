@@ -6,6 +6,7 @@ use App\Jobs\SendSmsJob;
 use App\Livewire\Admin\WaitlistPanel;
 use App\Livewire\StaffWalkInQueue;
 use App\Models\QueueEntry;
+use App\Models\Seat;
 use App\Models\Setting;
 use App\Models\Table;
 use App\Models\User;
@@ -221,6 +222,63 @@ class WaitlistPaperAlignmentTest extends TestCase
         $this->actingAs($this->user('staff'))
             ->get(route('staff.queue'))
             ->assertRedirect(route('admin.waitlist'));
+    }
+
+    public function test_waitlist_management_combines_floor_map_and_waitlist_operations(): void
+    {
+        $table = $this->table(capacity: 4, status: 'available');
+        Seat::create([
+            'table_id' => $table->id,
+            'seat_index' => 1,
+            'status' => 'free',
+            'pos_x' => 25,
+            'pos_y' => 30,
+        ]);
+
+        $this->queueEntry(['customer_name' => 'Operations Guest']);
+
+        $this->actingAs($this->user('admin'))
+            ->get(route('admin.waitlist'))
+            ->assertOk()
+            ->assertSee('Floor Map Panel')
+            ->assertSeeHtml('data-blueprint-floor-map')
+            ->assertSeeHtml('data-waitlist-root')
+            ->assertSee('Operations Guest')
+            ->assertSee('Add Walk-in');
+    }
+
+    public function test_floor_map_marker_can_open_table_first_waitlist_seating(): void
+    {
+        $table = $this->table(capacity: 4, status: 'available');
+        $entry = $this->queueEntry([
+            'customer_name' => 'Seat From Marker Guest',
+            'party_size' => 2,
+        ]);
+
+        Livewire::actingAs($this->user('admin'))
+            ->test(WaitlistPanel::class)
+            ->call('openFloorMapSeatWaitlistGuest', ['tableId' => $table->id])
+            ->assertSet('floorSeatTableId', $table->id)
+            ->assertSee('Seat waitlist guest at '.$table->label)
+            ->assertSee('Seat From Marker Guest')
+            ->call('seatWaitingGuestAtFloorTable', $entry->id)
+            ->assertSet('floorSeatTableId', null)
+            ->assertDispatched('notify', type: 'success', message: 'Guest seated.')
+            ->assertDispatched('tables-refresh');
+
+        $this->assertSame('seated', $entry->refresh()->status);
+        $this->assertSame('occupied', $table->refresh()->status);
+    }
+
+    public function test_floor_map_marker_rejects_non_free_table_for_waitlist_seating(): void
+    {
+        $table = $this->table(capacity: 4, status: 'occupied');
+
+        Livewire::actingAs($this->user('admin'))
+            ->test(WaitlistPanel::class)
+            ->call('openFloorMapSeatWaitlistGuest', ['tableId' => $table->id])
+            ->assertSet('floorSeatTableId', null)
+            ->assertDispatched('notify', type: 'error', message: 'Choose a free table before seating a waitlist guest.');
     }
 
     public function test_eta_is_zero_only_when_guest_has_immediate_compatible_table(): void

@@ -33,6 +33,8 @@ class WaitlistPanel extends Component
 
     public ?int $seatQuickPickEntryId = null;
 
+    public ?int $floorSeatTableId = null;
+
     public bool $showBusyHoursModal = false;
 
     public bool $showWalkInModal = false;
@@ -85,6 +87,44 @@ class WaitlistPanel extends Component
         $this->seatQuickPickEntryId = null;
     }
 
+    #[On('floor-map-seat-waitlist-guest')]
+    public function openFloorMapSeatWaitlistGuest(mixed $tableId = null): void
+    {
+        $this->ensureStaff();
+
+        if (is_array($tableId)) {
+            $tableId = $tableId['tableId'] ?? null;
+        }
+
+        $id = (int) $tableId;
+        if ($id <= 0) {
+            $this->dispatch('notify', type: 'error', message: 'Choose a table marker first.');
+
+            return;
+        }
+
+        $table = Table::query()->find($id);
+        if (! $table) {
+            $this->dispatch('notify', type: 'error', message: 'Table marker was not found.');
+
+            return;
+        }
+
+        if ($table->status !== 'available') {
+            $this->dispatch('notify', type: 'error', message: 'Choose a free table before seating a waitlist guest.');
+
+            return;
+        }
+
+        $this->floorSeatTableId = $table->id;
+        $this->selectedTableId = $table->id;
+    }
+
+    public function closeFloorMapSeatModal(): void
+    {
+        $this->floorSeatTableId = null;
+    }
+
     public function openWalkInModal(): void
     {
         $this->ensureStaff();
@@ -105,6 +145,12 @@ class WaitlistPanel extends Component
         $this->dispatch('tables-refresh');
     }
 
+    #[On('tables-refresh')]
+    public function refreshOperationsState(): void
+    {
+        // Re-render after floor-map status changes so ETA, queue state, and table choices stay in sync.
+    }
+
     public function seatFromQuickPick(int $entryId, int $tableId): void
     {
         $this->ensureStaff();
@@ -115,6 +161,43 @@ class WaitlistPanel extends Component
             $this->seatCustomer($entryId, $tableId);
         }
         $this->closeSeatQuickPick();
+    }
+
+    public function seatWaitingGuestAtFloorTable(int $entryId): void
+    {
+        $this->ensureStaff();
+
+        $tableId = (int) $this->floorSeatTableId;
+        if ($tableId <= 0) {
+            $this->dispatch('notify', type: 'error', message: 'Choose a table marker first.');
+
+            return;
+        }
+
+        $entry = QueueEntry::query()->findOrFail($entryId);
+        $table = Table::query()->findOrFail($tableId);
+
+        if ($entry->status !== 'waiting') {
+            $this->dispatch('notify', type: 'error', message: 'Use the confirmation code flow for notified guests.');
+
+            return;
+        }
+
+        if ($table->status !== 'available') {
+            $this->dispatch('notify', type: 'error', message: 'Choose a free table before seating a waitlist guest.');
+
+            return;
+        }
+
+        if (! $entry->accommodates($table)) {
+            $this->dispatch('notify', type: 'error', message: 'This table is not compatible with the selected guest.');
+
+            return;
+        }
+
+        if ($this->seatCustomer($entry->id, $table->id)) {
+            $this->closeFloorMapSeatModal();
+        }
     }
 
     public function confirmAndSeatFromSeatButton(int $entryId): void
@@ -286,6 +369,20 @@ class WaitlistPanel extends Component
             }
         }
 
+        $floorSeatTable = null;
+        $floorSeatCandidates = collect();
+        if ($this->floorSeatTableId) {
+            $floorSeatTable = Table::query()->find($this->floorSeatTableId);
+            if ($floorSeatTable && $floorSeatTable->status === 'available') {
+                $floorSeatCandidates = QueueEntry::query()
+                    ->where('status', 'waiting')
+                    ->sorted()
+                    ->get()
+                    ->filter(fn (QueueEntry $entry) => $entry->accommodates($floorSeatTable))
+                    ->values();
+            }
+        }
+
         $autoSmsOn = Setting::get('automation_notify_queue_on_release', '1') === '1';
         $peakOverrideOn = Setting::get('waitlist_staff_peak_override', '0') === '1';
 
@@ -306,6 +403,8 @@ class WaitlistPanel extends Component
             'systemStatus' => $systemStatus,
             'quickPickEntry' => $quickPickEntry,
             'sortedQuickTables' => $sortedQuickTables,
+            'floorSeatTable' => $floorSeatTable,
+            'floorSeatCandidates' => $floorSeatCandidates,
             'autoSmsOn' => $autoSmsOn,
             'peakOverrideOn' => $peakOverrideOn,
         ]);
