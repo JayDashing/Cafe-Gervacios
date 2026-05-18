@@ -178,6 +178,7 @@
                             'entry' => $entry,
                             'availableTables' => $availableTables,
                             'selectedTableId' => $selectedTableId,
+                            'highlightedQueueEntryId' => $highlightedQueueEntryId,
                             'mode' => 'waiting',
                         ])
                     @endforeach
@@ -190,6 +191,7 @@
                             'entry' => $entry,
                             'availableTables' => $availableTables,
                             'selectedTableId' => $selectedTableId,
+                            'highlightedQueueEntryId' => $highlightedQueueEntryId,
                             'mode' => 'waiting',
                         ])
                     @endforeach
@@ -212,6 +214,7 @@
                         'entry' => $entry,
                         'availableTables' => $availableTables,
                         'selectedTableId' => $selectedTableId,
+                        'highlightedQueueEntryId' => $highlightedQueueEntryId,
                         'mode' => 'notified',
                     ])
                 @empty
@@ -231,6 +234,7 @@
                         'entry' => $entry,
                         'availableTables' => $availableTables,
                         'selectedTableId' => $selectedTableId,
+                        'highlightedQueueEntryId' => $highlightedQueueEntryId,
                         'mode' => 'seated',
                     ])
                 @empty
@@ -250,6 +254,7 @@
                         'entry' => $entry,
                         'availableTables' => $availableTables,
                         'selectedTableId' => $selectedTableId,
+                        'highlightedQueueEntryId' => $highlightedQueueEntryId,
                         'mode' => 'cancelled',
                     ])
                 @empty

@@ -30,6 +30,23 @@ class StaffWalkInQueue extends Component
 
     public bool $modalMode = false;
 
+    public function submitGuidedAction(): void
+    {
+        if ($this->compatibleFreeTableCount() > 0) {
+            if ($this->selectedTableId === null) {
+                $this->toastError('Select an available table to seat guest.');
+
+                return;
+            }
+
+            $this->seatSelectedTable();
+
+            return;
+        }
+
+        $this->register();
+    }
+
     public function register(): void
     {
         $validated = $this->validatedWalkInDetails();
@@ -145,6 +162,7 @@ class StaffWalkInQueue extends Component
             'walkInTableMarkers' => $this->walkInTableMarkers($layoutData['tableGroups']),
             'selectedTable' => $selectedTable,
             'accessibleRequired' => $this->accessibleRequired(),
+            'estimatedWait' => app(QueueService::class)->estimateWait($this->partySizeValue(), $this->priority_type),
         ]);
     }
 
@@ -265,6 +283,16 @@ class StaffWalkInQueue extends Component
             'accessibility' => 'Needs accessible',
             default => 'Selectable',
         };
+    }
+
+    private function compatibleFreeTableCount(): int
+    {
+        return Table::query()
+            ->where('status', 'available')
+            ->whereHas('seats')
+            ->get()
+            ->filter(fn (Table $table) => $this->tableSelectionIssue($table) === null)
+            ->count();
     }
 
     /**

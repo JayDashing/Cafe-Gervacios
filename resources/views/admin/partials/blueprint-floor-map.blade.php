@@ -366,6 +366,23 @@
         filter: grayscale(0.45);
     }
 
+    .bfm-marker.is-ops-compatible {
+        outline: 4px solid rgba(14, 165, 233, 0.32);
+        outline-offset: 5px;
+        box-shadow: 0 14px 30px rgb(15 23 42 / 0.24);
+    }
+
+    .bfm-marker.is-ops-linked {
+        outline-color: rgba(15, 23, 42, 0.45);
+        border-color: #0f172a;
+        transform: translate(-50%, -50%) translateY(-2px);
+    }
+
+    .bfm-marker.is-ops-dimmed {
+        opacity: 0.34;
+        filter: grayscale(0.8);
+    }
+
     .bfm-marker.is-merged:not(.is-selected) {
         opacity: 0.82;
     }

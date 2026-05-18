@@ -2,6 +2,7 @@
     'entry',
     'availableTables',
     'selectedTableId',
+    'highlightedQueueEntryId' => null,
     'mode' => 'waiting',
 ])
 
@@ -23,18 +24,21 @@
     wire:key="waitlist-entry-card-{{ $entry->id }}-{{ $entry->status }}"
     x-data="{ detailsOpen: false }"
     x-on:keydown.escape.window="detailsOpen = false"
-    class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-slate-300">
+    @if (in_array($mode, ['waiting', 'notified'], true))
+        x-on:click="$event.target.closest('button, a, input, select, textarea') || $wire.highlightCompatibleTablesForEntry({{ $entry->id }})"
+    @endif
+    class="rounded-xl border bg-white p-4 shadow-sm transition hover:border-slate-300 {{ (int) ($highlightedQueueEntryId ?? 0) === (int) $entry->id ? 'border-sky-300 bg-sky-50/70 ring-2 ring-sky-200' : 'border-slate-200' }} {{ in_array($mode, ['waiting', 'notified'], true) ? 'cursor-pointer' : '' }}">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex min-w-0 flex-1 items-center gap-3">
             <span
-                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 font-mono text-sm font-bold text-white">
+                class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 font-mono text-base font-bold text-white">
                 #{{ $entry->queue_display_number ?? $entry->id }}
             </span>
             <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
-                    <h3 class="truncate text-sm font-semibold text-slate-950">{{ $entry->customer_name }}</h3>
-                    <span class="text-xs font-semibold text-slate-500">{{ (int) $entry->party_size }} guests</span>
-                    <span class="text-xs font-semibold text-slate-500">ETA: {{ $waitLabel }}</span>
+                    <h3 class="truncate text-base font-bold text-slate-950">{{ $entry->customer_name }}</h3>
+                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">{{ (int) $entry->party_size }} guests</span>
+                    <span class="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">ETA: {{ $waitLabel }}</span>
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-1.5">
                     <x-status-badge :status="$priorityStatus" :label="$priorityLabel" size="xs" />
@@ -43,27 +47,27 @@
             </div>
         </div>
 
-        <div class="flex shrink-0 items-center justify-end gap-2 lg:min-w-[18rem]">
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 lg:min-w-[18rem]">
             @if ($mode === 'waiting')
                 <button type="button"
                     wire:click="sendSmsManually({{ $entry->id }})"
                     wire:loading.attr="disabled"
                     wire:target="sendSmsManually"
-                    class="tc-admin-btn-primary inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2 text-xs disabled:opacity-60">
+                    class="tc-admin-btn-primary inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2 text-sm disabled:opacity-60">
                     <i class="fa-solid fa-paper-plane text-[10px]" aria-hidden="true"></i>
                     Notify Guest
                 </button>
             @elseif ($mode === 'notified')
                 <button type="button"
                     x-on:click="detailsOpen = true"
-                    class="tc-admin-btn-primary inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2 text-xs">
+                    class="tc-admin-btn-primary inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2 text-sm">
                     <i class="fa-solid fa-chair text-[10px]" aria-hidden="true"></i>
                     Seat Guest
                 </button>
             @else
                 <button type="button"
                     x-on:click="detailsOpen = true"
-                    class="tc-admin-btn-primary inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2 text-xs">
+                    class="tc-admin-btn-primary inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2 text-sm">
                     <i class="fa-solid fa-circle-info text-[10px]" aria-hidden="true"></i>
                     View Details
                 </button>
@@ -72,7 +76,7 @@
             <div class="relative">
                 <button type="button"
                     x-on:click.stop="detailsOpen = true"
-                    class="tc-admin-btn-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 text-xs"
+                    class="tc-admin-btn-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm"
                     aria-haspopup="dialog"
                     aria-controls="waitlist-entry-details-{{ $entry->id }}"
                     x-bind:aria-expanded="detailsOpen.toString()">

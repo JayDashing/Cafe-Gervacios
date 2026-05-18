@@ -127,6 +127,62 @@ class StaffWalkInQueueTest extends TestCase
         $this->assertSame('Marker Guest', $entry->customer_name);
     }
 
+    public function test_guided_walk_in_action_adds_to_waitlist_when_no_suitable_table_exists(): void
+    {
+        Queue::fake([SendSmsJob::class]);
+
+        $user = User::factory()->create([
+            'role' => 'staff',
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+        $this->tableWithSeat('T2', 2, 'occupied', 30, 35);
+
+        Livewire::actingAs($user)
+            ->test(StaffWalkInQueue::class)
+            ->set('customer_name', 'Waitlist Guided Guest')
+            ->set('customer_phone', '')
+            ->set('party_size', 2)
+            ->set('priority_type', 'none')
+            ->assertSee('No suitable table available. Guest will be added to the waitlist.')
+            ->assertSee('Add to Waitlist')
+            ->call('submitGuidedAction')
+            ->assertHasNoErrors()
+            ->assertDispatched('notify', type: 'success', message: 'Added to queue. Ticket #1');
+
+        $this->assertSame('waiting', QueueEntry::firstOrFail()->status);
+    }
+
+    public function test_guided_walk_in_action_requires_table_selection_when_suitable_table_exists(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'staff',
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+        $table = $this->tableWithSeat('T4', 4, 'available', 40, 45);
+
+        Livewire::actingAs($user)
+            ->test(StaffWalkInQueue::class)
+            ->set('customer_name', 'Seat Guided Guest')
+            ->set('customer_phone', '')
+            ->set('party_size', 2)
+            ->set('priority_type', 'none')
+            ->assertSee('Select an available table to seat guest.')
+            ->assertSee('Seat Guest')
+            ->assertDontSee('Add to Waitlist')
+            ->call('submitGuidedAction')
+            ->assertDispatched('notify', type: 'error', message: 'Select an available table to seat guest.')
+            ->call('selectTable', $table->id)
+            ->assertSee('Seat Guest at T4')
+            ->call('submitGuidedAction')
+            ->assertHasNoErrors()
+            ->assertDispatched('notify', type: 'success', message: 'Guest seated at table T4.');
+
+        $this->assertSame('seated', QueueEntry::firstOrFail()->status);
+        $this->assertSame('occupied', $table->refresh()->status);
+    }
+
     public function test_incompatible_floor_map_marker_selection_shows_error(): void
     {
         $user = User::factory()->create([

@@ -199,8 +199,9 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->assertSee('Register Walk-in')
             ->assertSee('Selected Table')
             ->assertSee('Floor Map')
-            ->assertSee('Add to queue')
-            ->assertSee('Seat selected table')
+            ->assertSee('No suitable table available. Guest will be added to the waitlist.')
+            ->assertSee('Add to Waitlist')
+            ->assertDontSee('Seat selected table')
             ->call('closeWalkInModal')
             ->assertSet('showWalkInModal', false)
             ->assertDontSee('Register Walk-in');
@@ -279,6 +280,23 @@ class WaitlistPaperAlignmentTest extends TestCase
             ->call('openFloorMapSeatWaitlistGuest', ['tableId' => $table->id])
             ->assertSet('floorSeatTableId', null)
             ->assertDispatched('notify', type: 'error', message: 'Choose a free table before seating a waitlist guest.');
+    }
+
+    public function test_clicking_waitlist_guest_highlights_compatible_floor_map_tables(): void
+    {
+        $small = $this->table(capacity: 1, status: 'available');
+        $fit = $this->table(capacity: 4, status: 'available');
+        $occupied = $this->table(capacity: 4, status: 'occupied');
+        $entry = $this->queueEntry([
+            'customer_name' => 'Map Match Guest',
+            'party_size' => 2,
+        ]);
+
+        Livewire::actingAs($this->user('admin'))
+            ->test(WaitlistPanel::class)
+            ->call('highlightCompatibleTablesForEntry', $entry->id)
+            ->assertSet('highlightedQueueEntryId', $entry->id)
+            ->assertDispatched('operations-highlight-compatible-tables', tableIds: [$fit->id]);
     }
 
     public function test_eta_is_zero_only_when_guest_has_immediate_compatible_table(): void

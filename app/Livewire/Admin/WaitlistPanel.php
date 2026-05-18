@@ -35,6 +35,8 @@ class WaitlistPanel extends Component
 
     public ?int $floorSeatTableId = null;
 
+    public ?int $highlightedQueueEntryId = null;
+
     public bool $showBusyHoursModal = false;
 
     public bool $showWalkInModal = false;
@@ -123,6 +125,37 @@ class WaitlistPanel extends Component
     public function closeFloorMapSeatModal(): void
     {
         $this->floorSeatTableId = null;
+    }
+
+    public function highlightCompatibleTablesForEntry(int $entryId): void
+    {
+        $this->ensureStaff();
+
+        $entry = QueueEntry::query()->findOrFail($entryId);
+        if (! in_array($entry->status, ['waiting', 'notified'], true)) {
+            return;
+        }
+
+        $this->highlightedQueueEntryId = $entry->id;
+
+        $tableIds = Table::query()
+            ->where('status', 'available')
+            ->orderBy('capacity')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Table $table) => $entry->accommodates($table))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $this->dispatch(
+            'operations-highlight-compatible-tables',
+            entryId: $entry->id,
+            guest: $entry->customer_name,
+            partySize: (int) $entry->party_size,
+            tableIds: $tableIds,
+        );
     }
 
     public function openWalkInModal(): void

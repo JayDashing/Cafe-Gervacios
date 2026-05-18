@@ -139,6 +139,8 @@ class BlueprintFloorMap {
         this.pendingMarker = null;
         this.pendingMoves = new Map();
         this.suppressClickForTable = null;
+        this.operationsHighlightIds = new Set();
+        this.operationsLinkedTableId = null;
 
         this.bind();
         this.render();
@@ -281,7 +283,17 @@ class BlueprintFloorMap {
 
         this.selectedTableId = tableId;
         this.selectedGroupId = this.groupForTable(tableId)?.id || null;
+        this.operationsLinkedTableId = this.operationsHighlightIds.has(Number(tableId)) ? Number(tableId) : null;
         this.render();
+    }
+
+    setOperationsHighlight(payload = {}) {
+        const data = Array.isArray(payload) ? (payload[0] || {}) : payload;
+        const ids = Array.isArray(data.tableIds) ? data.tableIds : [];
+
+        this.operationsHighlightIds = new Set(ids.map((id) => Number(id)).filter(Boolean));
+        this.operationsLinkedTableId = null;
+        this.renderMarkers();
     }
 
     nextTableLabel() {
@@ -622,6 +634,9 @@ class BlueprintFloorMap {
                 'is-merged',
                 'is-merge-compatible',
                 'is-merge-blocked',
+                'is-ops-compatible',
+                'is-ops-linked',
+                'is-ops-dimmed',
             );
             marker.classList.add(`bfm-marker--${status === 'available' ? 'free' : status}`);
             marker.classList.toggle('is-selected', Number(table.id) === Number(this.selectedTableId));
@@ -631,6 +646,11 @@ class BlueprintFloorMap {
             const canCompareMergeDistance = this.selectionMode && this.selectedIds.size > 0 && !this.selectedIds.has(Number(table.id));
             marker.classList.toggle('is-merge-compatible', canCompareMergeDistance && this.candidateCanJoinSelection(Number(table.id)));
             marker.classList.toggle('is-merge-blocked', canCompareMergeDistance && !this.candidateCanJoinSelection(Number(table.id)));
+            const hasOperationsHighlight = this.operationsHighlightIds.size > 0;
+            const isOperationsCompatible = this.operationsHighlightIds.has(Number(table.id));
+            marker.classList.toggle('is-ops-compatible', hasOperationsHighlight && isOperationsCompatible);
+            marker.classList.toggle('is-ops-linked', hasOperationsHighlight && Number(table.id) === Number(this.operationsLinkedTableId));
+            marker.classList.toggle('is-ops-dimmed', hasOperationsHighlight && !isOperationsCompatible);
             this.applyMarkerPosition(marker, table);
             marker.setAttribute('aria-label', `${table.label}, ${statusLabel(status)}, ${table.capacity} seats`);
             marker.querySelector('.bfm-marker__name').textContent = table.label;
@@ -1340,4 +1360,16 @@ document.querySelectorAll('[data-blueprint-floor-map]').forEach((root) => {
     if (!root.blueprintFloorMap) {
         root.blueprintFloorMap = new BlueprintFloorMap(root);
     }
+});
+
+document.addEventListener('livewire:init', () => {
+    if (typeof window.Livewire?.on !== 'function') {
+        return;
+    }
+
+    window.Livewire.on('operations-highlight-compatible-tables', (payload) => {
+        document.querySelectorAll('[data-blueprint-floor-map]').forEach((root) => {
+            root.blueprintFloorMap?.setOperationsHighlight(payload);
+        });
+    });
 });
