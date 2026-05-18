@@ -347,12 +347,6 @@
             <span class="admin-sidebar-nav-text">Floor Map Management</span>
         </a>
 
-        @php [$c] = $item('staff.queue'); @endphp
-        <a href="{{ route('staff.queue') }}" class="{{ $c }}" title="Priority Queue" aria-current="{{ request()->routeIs('staff.queue') ? 'page' : 'false' }}">
-            <i class="fa-solid fa-clipboard-list tc-nav-icon"></i>
-            <span class="admin-sidebar-nav-text">Priority Queue</span>
-        </a>
-
         @if ($isAdminUser)
             @php [$c] = $item('admin.seating-analytics'); @endphp
             <a href="{{ route('admin.seating-analytics') }}" class="{{ $c }}" title="Reports & Analytics" aria-current="{{ request()->routeIs('admin.seating-analytics') ? 'page' : 'false' }}">
