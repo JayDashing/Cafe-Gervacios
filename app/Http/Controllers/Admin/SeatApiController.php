@@ -337,6 +337,7 @@ class SeatApiController extends Controller
             'container_height' => ['nullable', 'numeric', 'gt:0', 'max:20000'],
             'marker_width' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
             'marker_height' => ['nullable', 'numeric', 'gt:0', 'max:2000'],
+            'table_id' => ['nullable', 'integer', 'exists:tables,id'],
             'label' => ['nullable', 'string', 'max:50'],
             'capacity' => ['nullable', 'integer', 'min:1', 'max:99'],
             'furniture_type' => ['nullable', 'string', 'max:32'],
@@ -345,29 +346,49 @@ class SeatApiController extends Controller
         $this->assertMarkerInsideBlueprint($validated);
 
         $result = DB::transaction(function () use ($validated) {
+            $restoreId = (int) ($validated['table_id'] ?? 0);
+            $table = null;
+
+            if ($restoreId > 0) {
+                $table = Table::query()->lockForUpdate()->findOrFail($restoreId);
+                if ($table->seats()->exists()) {
+                    throw ValidationException::withMessages([
+                        'table_id' => ['This table is already on the floor map.'],
+                    ]);
+                }
+            }
+
             $label = isset($validated['label']) && trim((string) $validated['label']) !== ''
                 ? trim((string) $validated['label'])
                 : $this->nextDefaultTableLabel();
-            $this->assertTableLabelAvailable($label);
+            if (! $table) {
+                $this->assertTableLabelAvailable($label);
+            }
 
             $furniture = trim((string) ($validated['furniture_type'] ?? 'standard'));
             if ($furniture === '') {
                 $furniture = 'standard';
             }
 
-            $capacity = (int) ($validated['capacity'] ?? 1);
+            $capacity = $table ? (int) $table->capacity : (int) ($validated['capacity'] ?? 1);
             $seatStatus = isset($validated['status']) && $validated['status'] !== ''
                 ? $validated['status']
                 : Seat::STATUS_FREE;
 
-            $table = Table::query()->create([
-                'venue_id' => 1,
-                'label' => $label,
-                'capacity' => $capacity,
-                'status' => $this->seatStatusToTableStatus($seatStatus),
-                'shape' => 'rect',
-                'furniture_type' => $furniture,
-            ]);
+            if ($table) {
+                $table->update([
+                    'status' => $this->seatStatusToTableStatus($seatStatus),
+                ]);
+            } else {
+                $table = Table::query()->create([
+                    'venue_id' => 1,
+                    'label' => $label,
+                    'capacity' => $capacity,
+                    'status' => $this->seatStatusToTableStatus($seatStatus),
+                    'shape' => 'rect',
+                    'furniture_type' => $furniture,
+                ]);
+            }
 
             $seat = Seat::query()->create([
                 'table_id' => $table->id,
@@ -381,6 +402,8 @@ class SeatApiController extends Controller
                 'table_id' => $table->id,
                 'table_label' => $table->label,
                 'seat_id' => $seat->id,
+                'capacity' => (int) $table->capacity,
+                'furniture_type' => (string) ($table->furniture_type ?? 'standard'),
                 'pos_x' => (float) $seat->pos_x,
                 'pos_y' => (float) $seat->pos_y,
             ];
@@ -524,7 +547,7 @@ class SeatApiController extends Controller
 
         DB::transaction(function () use ($seat, $table, $scope) {
             if ($scope === 'table') {
-                $table->delete();
+                $table->seats()->delete();
 
                 return;
             }
@@ -562,7 +585,7 @@ class SeatApiController extends Controller
 
         return response()->json([
             'ok' => true,
-            'removed_table_id' => $tableStillExists ? null : $tableId,
+            'removed_table_id' => $scope === 'table' || ! $tableStillExists ? $tableId : null,
         ]);
     }
 

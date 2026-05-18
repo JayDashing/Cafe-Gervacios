@@ -137,6 +137,12 @@ class BlueprintFloorMap {
         this.editMode = root.dataset.editMode === 'true';
         this.operationsMode = root.dataset.operationsMode === 'true';
         this.tables = readJson(root, '[data-blueprint-tables-json]', []).map((table) => this.normalizeTable(table));
+        this.restorableTables = readJson(root, '[data-blueprint-restorable-json]', []).map((table) => ({
+            ...table,
+            id: Number(table.id),
+            capacity: Number(table.capacity || 1),
+            furniture_type: table.furniture_type || 'standard',
+        }));
         this.groups = readJson(root, '[data-blueprint-groups-json]', []).map(normalizeGroup)
             .filter((group) => group.table_ids.length > 1);
         this.bookings = readJson(root, '[data-blueprint-bookings-json]', []);
@@ -212,6 +218,10 @@ class BlueprintFloorMap {
         this.addForm?.addEventListener('submit', (event) => {
             event.preventDefault();
             this.beginPlacementFromModal();
+        });
+
+        this.addModal?.querySelector('[data-add-field="restore"]')?.addEventListener('change', () => {
+            this.syncAddModalForRestore();
         });
 
         this.mergeForm?.addEventListener('submit', (event) => {
@@ -1017,6 +1027,8 @@ class BlueprintFloorMap {
         if (nextLabel) {
             nextLabel.textContent = this.nextTableLabel();
         }
+
+        this.renderRestoreOptions();
     }
 
     renderPanel() {
@@ -1539,9 +1551,47 @@ class BlueprintFloorMap {
 
     openAddModal() {
         if (!this.editMode || !this.addModal) return;
+        this.renderRestoreOptions();
+        this.syncAddModalForRestore();
         this.addModal.hidden = false;
         this.renderControls();
         this.addModal.querySelector('[data-add-field="capacity"]')?.focus();
+    }
+
+    renderRestoreOptions() {
+        const select = this.addModal?.querySelector('[data-add-field="restore"]');
+        if (!select) return;
+
+        const selected = select.value;
+        select.innerHTML = '<option value="">Create new table</option>';
+        this.restorableTables
+            .slice()
+            .sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true }))
+            .forEach((table) => {
+                const option = document.createElement('option');
+                option.value = String(table.id);
+                option.textContent = `Restore ${table.label} - ${Number(table.capacity || 1)} seats`;
+                select.appendChild(option);
+            });
+        if ([...select.options].some((option) => option.value === selected)) {
+            select.value = selected;
+        }
+    }
+
+    syncAddModalForRestore() {
+        const restoreId = Number(this.addModal?.querySelector('[data-add-field="restore"]')?.value || 0);
+        const table = this.restorableTables.find((item) => Number(item.id) === restoreId) || null;
+        const capacity = this.addModal?.querySelector('[data-add-field="capacity"]');
+        const type = this.addModal?.querySelector('[data-add-field="type"]');
+
+        if (capacity) {
+            capacity.disabled = Boolean(table);
+            if (table) capacity.value = String(table.capacity || 1);
+        }
+        if (type) {
+            type.disabled = Boolean(table);
+            if (table) type.value = table.furniture_type || 'standard';
+        }
     }
 
     closeAddModal() {
@@ -1551,8 +1601,10 @@ class BlueprintFloorMap {
     }
 
     beginPlacementFromModal() {
-        const capacity = Number(this.addModal?.querySelector('[data-add-field="capacity"]')?.value || 1);
-        const furnitureType = String(this.addModal?.querySelector('[data-add-field="type"]')?.value || 'standard');
+        const restoreId = Number(this.addModal?.querySelector('[data-add-field="restore"]')?.value || 0);
+        const restoreTable = this.restorableTables.find((table) => Number(table.id) === restoreId) || null;
+        const capacity = restoreTable ? Number(restoreTable.capacity || 1) : Number(this.addModal?.querySelector('[data-add-field="capacity"]')?.value || 1);
+        const furnitureType = restoreTable ? String(restoreTable.furniture_type || 'standard') : String(this.addModal?.querySelector('[data-add-field="type"]')?.value || 'standard');
 
         if (Number.isNaN(capacity) || capacity < 1) {
             notify('error', 'Enter a valid capacity.');
@@ -1560,7 +1612,8 @@ class BlueprintFloorMap {
         }
 
         this.pendingMarker = {
-            preview_label: this.nextTableLabel(),
+            table_id: restoreTable ? restoreTable.id : null,
+            preview_label: restoreTable ? restoreTable.label : this.nextTableLabel(),
             capacity,
             furniture_type: furnitureType,
         };
@@ -1580,6 +1633,7 @@ class BlueprintFloorMap {
         try {
             const { data } = await axios.post(this.apiPlace, {
                 ...this.coordinatePayload(point),
+                table_id: this.pendingMarker.table_id,
                 capacity: this.pendingMarker.capacity,
                 furniture_type: this.pendingMarker.furniture_type,
                 status: 'free',
@@ -1591,16 +1645,18 @@ class BlueprintFloorMap {
                 id: data.seat.table_id,
                 seat_id: data.seat.seat_id,
                 label: data.seat.table_label,
-                capacity: this.pendingMarker.capacity,
+                capacity: data.seat.capacity || this.pendingMarker.capacity,
+                min_capacity: data.seat.capacity || this.pendingMarker.capacity,
                 status: 'available',
                 x: data.seat.pos_x ?? point.x,
                 y: data.seat.pos_y ?? point.y,
-                furniture_type: this.pendingMarker.furniture_type,
+                furniture_type: data.seat.furniture_type || this.pendingMarker.furniture_type,
                 guest: { name: 'No current guest', party: String(this.pendingMarker.capacity), arrival_at: null },
                 booking: null,
             });
 
             this.tables.push(table);
+            this.restorableTables = this.restorableTables.filter((item) => Number(item.id) !== Number(table.id));
             this.pendingMarker = null;
             this.selectedTableId = table.id;
             this.render();
@@ -1736,6 +1792,13 @@ class BlueprintFloorMap {
             });
 
             this.tables = this.tables.filter((item) => item.id !== table.id);
+            this.restorableTables.push({
+                id: table.id,
+                label: table.label,
+                capacity: Number(table.capacity || 1),
+                furniture_type: table.furniture_type || 'standard',
+                status: table.status || 'available',
+            });
             this.groups = this.groups
                 .map((group) => ({
                     ...group,

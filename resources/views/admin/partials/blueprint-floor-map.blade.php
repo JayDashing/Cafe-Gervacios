@@ -1,5 +1,6 @@
 @php
     use App\Models\Setting;
+    use App\Models\Table as CafeTable;
 
     $canEditBlueprint = auth()->user()?->isAdmin() ?? false;
     $editMode = $canEditBlueprint && request()->boolean('edit');
@@ -71,6 +72,21 @@
             'party' => (int) $booking->party_size,
             'time' => optional($booking->booked_at)->timezone(config('app.timezone'))->format('M d, g:i A'),
         ]);
+
+    $restorableTables = $canEditBlueprint
+        ? CafeTable::query()
+            ->whereDoesntHave('seats')
+            ->orderBy('label')
+            ->get(['id', 'label', 'capacity', 'furniture_type', 'status'])
+            ->map(fn ($table) => [
+                'id' => (int) $table->id,
+                'label' => (string) $table->label,
+                'capacity' => (int) $table->capacity,
+                'furniture_type' => (string) ($table->furniture_type ?? 'standard'),
+                'status' => (string) $table->status,
+            ])
+            ->values()
+        : collect();
 @endphp
 
 <section
@@ -88,6 +104,7 @@
     data-api-delete="{{ $canEditBlueprint ? route('admin.api.seats.delete') : '' }}"
     data-bookings-url="{{ route('admin.bookings') }}">
     <script type="application/json" data-blueprint-tables-json>@json($markers)</script>
+    <script type="application/json" data-blueprint-restorable-json>@json($restorableTables)</script>
     <script type="application/json" data-blueprint-groups-json>@json($dailyMergeGroups ?? [])</script>
     <script type="application/json" data-blueprint-bookings-json>@json($bookingChoices)</script>
 
@@ -230,6 +247,17 @@
                         <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                             <span class="bfm-field-label mb-1">New table will be named</span>
                             <strong class="block text-xl font-black tracking-tight text-slate-950" data-blueprint-next-label>T1</strong>
+                        </div>
+                        <div>
+                            <label class="bfm-field-label" for="bfm-add-restore">Table source</label>
+                            <select id="bfm-add-restore" class="bfm-input" data-add-field="restore">
+                                <option value="">Create new table</option>
+                                @foreach ($restorableTables as $table)
+                                    <option value="{{ $table['id'] }}">
+                                        Restore {{ $table['label'] }} - {{ $table['capacity'] }} seats
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>

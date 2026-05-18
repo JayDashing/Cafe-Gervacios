@@ -289,7 +289,24 @@ class FloorMapPaperAlignmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('removed_table_id', $table->id);
 
-        $this->assertDatabaseMissing('tables', ['id' => $table->id]);
+        $this->assertDatabaseHas('tables', ['id' => $table->id]);
+        $this->assertDatabaseMissing('seats', ['table_id' => $table->id]);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.api.seats.place'), [
+                'table_id' => $table->id,
+                'pos_x' => 45,
+                'pos_y' => 45,
+                'image_width' => 1000,
+                'image_height' => 600,
+                'marker_width' => 80,
+                'marker_height' => 44,
+            ])
+            ->assertOk()
+            ->assertJsonPath('seat.table_id', $table->id)
+            ->assertJsonPath('seat.table_label', 'D1');
+
+        $this->assertDatabaseHas('seats', ['table_id' => $table->id, 'pos_x' => 45, 'pos_y' => 45]);
 
         [$legacyTable, $legacySeat] = $this->tableWithSeats('D2', 4, [[40, 40]]);
 
