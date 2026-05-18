@@ -7,11 +7,36 @@ use App\Services\AutomationEngine;
 use App\Services\TableService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('auth:clear-lockouts {ip? : IP address to clear; defaults to local development addresses}', function () {
+    if (app()->environment('production')) {
+        $this->error('auth:clear-lockouts is disabled in production.');
+
+        return 1;
+    }
+
+    $argument = $this->argument('ip');
+    $ips = $argument ? [$argument] : ['127.0.0.1', '::1'];
+
+    foreach (array_unique($ips) as $ip) {
+        // Development/testing helper only: Laravel hashes named throttle keys as md5("admin-login".$ip).
+        foreach ([md5('admin-login'.$ip), 'admin-login:'.$ip, $ip] as $key) {
+            RateLimiter::clear($key);
+        }
+
+        $this->line("Cleared admin login lockout for {$ip}.");
+    }
+
+    $this->info('Admin login lockouts cleared.');
+
+    return 0;
+})->purpose('Clear local/testing admin login rate limiter keys');
 
 // Auto-release expired tables every 15 minutes
 Schedule::call(function () {

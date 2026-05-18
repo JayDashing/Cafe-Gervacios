@@ -43,6 +43,13 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         RateLimiter::for('admin-login', function (Request $request) {
+            if (app()->environment(['local', 'testing'])) {
+                // Development/testing only: keep credential checks intact while avoiding long lockouts during repeated manual login testing.
+                return Limit::perMinute(50)->by($request->ip())->response(function () {
+                    return back()->withErrors(['email' => 'Too many login attempts. Please retry in a few seconds.']);
+                });
+            }
+
             return Limit::perMinutes(15, 5)->by($request->ip())->response(function () {
                 return back()->withErrors(['email' => 'Too many login attempts. Account locked for 15 minutes.']);
             });
