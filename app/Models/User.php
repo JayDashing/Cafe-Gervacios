@@ -66,7 +66,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Full access to payment QR, PayMongo, Semaphore, Facebook, and integration search.
+     * Full access to payment QR, PayMongo, PhilSMS, Facebook, and integration search.
      * Use role "superadmin" or list emails in config app.superadmin_emails (admin users only).
      */
     public function isSuperAdmin(): bool

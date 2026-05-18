@@ -18,9 +18,9 @@ Outbound SMS (queue notifications, booking confirmations, OTP, etc.) is sent **a
 
    Use `queue:work` (not one-off `queue:listen` in production unless you know why). Configure retries and timeouts to match your hosting policy.
 
-2. **Configure Semaphore** in **Admin → Settings → Text messages**:
-   - **API key** (`semaphore_api_key`)
-   - **Sender name** (registered with Semaphore)
+2. **Configure PhilSMS** in **Admin -> Settings -> Text messages**:
+   - **API key** (`philsms_api_key` or `PHILSMS_API_KEY`)
+   - **Sender ID** (`philsms_sender_id` or `PHILSMS_SENDER_ID`)
    - Ensure **SMS enabled** is on unless you intentionally disable all SMS.
 
 Without a worker, `SendSmsJob` and similar jobs will sit in the queue and messages will not be delivered.
@@ -96,9 +96,9 @@ Configure or verify the following before go-live. Many items live under **Admin 
 - [ ] PayMongo dashboard: webhook URL `https://yourdomain.com/webhook/paymongo` with matching secret.
 - [ ] **Deposit / fees:** `deposit_per_guest`, `reservation_fee` (Settings) match business rules.
 
-### SMS (Semaphore)
+### SMS (PhilSMS)
 
-- [ ] API key and sender name (**Settings → Text messages**).
+- [ ] API key and sender ID (**Settings -> Text messages**).
 - [ ] SMS enabled (unless SMS is deliberately off).
 - [ ] **Queue worker** running (see above).
 

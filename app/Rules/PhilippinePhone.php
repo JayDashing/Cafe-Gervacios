@@ -8,7 +8,9 @@ class PhilippinePhone implements Rule
 {
     public function passes($attribute, $value): bool
     {
-        return preg_match('/^(\+63|09)\d{9}$/', $value);
+        $normalized = preg_replace('/[\s\-\(\)\.]/', '', (string) $value) ?? '';
+
+        return preg_match('/^(09\d{9}|\+639\d{9}|639\d{9})$/', $normalized) === 1;
     }
 
     public function message(): string

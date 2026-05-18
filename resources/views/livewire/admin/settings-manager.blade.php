@@ -23,7 +23,7 @@
         'peak' => 'Texts',
         'alerts' => 'Alerts',
         'paymongo' => 'Online payments',
-        'semaphore' => 'Text messages',
+        'philsms' => 'Text messages',
         'facebook' => 'Facebook',
         'qr' => 'QR code',
     ];
@@ -226,15 +226,15 @@
             </div>
         </div>
 
-        <div id="settings-semaphore"
+        <div id="settings-philsms"
             class="settings-protected flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm scroll-mt-24 xl:col-span-4 xl:row-start-2"
-            data-settings-search="semaphore sms text message api philippines text blast">
+            data-settings-search="philsms sms text message api philippines text blast">
             <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-3.5 py-2.5">
                 <div class="min-w-0 pt-0.5">
                     <h2 class="text-sm font-bold leading-tight text-slate-800">Text messages</h2>
-                    <p class="mt-0.5 text-[11px] leading-snug text-slate-500">Semaphore</p>
+                    <p class="mt-0.5 text-[11px] leading-snug text-slate-500">PhilSMS</p>
                 </div>
-                <button type="button" wire:click="openSettingsModal('semaphore')"
+                <button type="button" wire:click="openSettingsModal('philsms')"
                     onclick="window.__settingsModalPreviousFocus = document.activeElement;"
                     class="shrink-0 rounded-lg bg-panel-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-panel-primary-hover">
                     Set up</button>
@@ -242,17 +242,17 @@
             <div class="flex min-h-0 flex-1 flex-col px-3.5 py-3 text-[13px] leading-snug text-slate-600">
                 <p class="flex flex-1 items-start gap-2">
                     <span
-                        class="mt-1.5 h-2 w-2 shrink-0 rounded-full {{ $this->semaphoreApiKeyConfigured ? 'bg-emerald-500' : 'bg-slate-300' }}"></span>
+                        class="mt-1.5 h-2 w-2 shrink-0 rounded-full {{ $this->philSmsApiKeyConfigured ? 'bg-emerald-500' : 'bg-slate-300' }}"></span>
                     <span>
                         <span class="font-medium text-slate-700">{{ $smsEnabled ? 'Sending texts' : 'Not sending' }}</span>
                         <span class="text-slate-400"> · </span>
-                        <span class="text-slate-600">{{ $semaphoreSenderName }}</span>
+                        <span class="text-slate-600">{{ $philSmsSenderId }}</span>
                     </span>
                 </p>
-                @if ($semaphoreMessage)
+                @if ($philSmsMessage)
                     <div
-                        class="mt-2 rounded-lg px-2.5 py-1.5 text-xs {{ $semaphoreStatus === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800' }}">
-                        {{ $semaphoreMessage }}
+                        class="mt-2 rounded-lg px-2.5 py-1.5 text-xs {{ $philSmsStatus === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800' }}">
+                        {{ $philSmsMessage }}
                     </div>
                 @endif
             </div>

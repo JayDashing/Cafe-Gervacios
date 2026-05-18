@@ -23,7 +23,7 @@ class SettingsManager extends Component
         'paymongo_public_key' => ['property' => 'paymongoPublicKey', 'max' => 500],
         'paymongo_secret_key' => ['property' => 'paymongoSecretKey', 'max' => 500],
         'paymongo_webhook_secret' => ['property' => 'paymongoWebhookSecret', 'max' => 500],
-        'semaphore_api_key' => ['property' => 'semaphoreApiKey', 'max' => 255],
+        'philsms_api_key' => ['property' => 'philSmsApiKey', 'max' => 255],
         'fb_access_token' => ['property' => 'fbAccessToken', 'max' => 1000],
     ];
 
@@ -47,22 +47,22 @@ class SettingsManager extends Component
     public string $paymongoMessage = '';
     public string $paymongoStatus = '';
 
-    // Semaphore SMS (Philippines)
-    protected string $semaphoreApiKey = '';
+    // PhilSMS (Philippines)
+    protected string $philSmsApiKey = '';
 
-    public string $semaphoreSenderName = '';
+    public string $philSmsSenderId = '';
 
     public bool $smsEnabled = true;
 
-    public string $semaphoreMessage = '';
+    public string $philSmsMessage = '';
 
-    public string $semaphoreStatus = '';
+    public string $philSmsStatus = '';
 
-    public string $semaphoreBalanceSummary = '';
+    public string $philSmsConnectionSummary = '';
 
-    public string $semaphoreTestMessage = '';
+    public string $philSmsTestMessage = '';
 
-    public string $semaphoreTestStatus = '';
+    public string $philSmsTestStatus = '';
 
     // Unified touchpoints & automation
     public bool $automationMasterEnabled = true;
@@ -120,7 +120,7 @@ class SettingsManager extends Component
 
         $this->reservationFee = (int) Setting::get('reservation_fee', 150);
 
-        $this->semaphoreSenderName = (string) Setting::get('semaphore_sender_name', config('services.semaphore.sender_name', 'CafeGervacios'));
+        $this->philSmsSenderId = (string) Setting::get('philsms_sender_id', config('services.philsms.sender_id', 'CafeGervacios'));
         $this->smsEnabled = Setting::get('sms_enabled', '1') === '1';
 
         $this->openModalFromQueryIfPresent();
@@ -143,7 +143,7 @@ class SettingsManager extends Component
         $this->paymongoPublicKey = Setting::get('paymongo_public_key', config('services.paymongo.public_key', ''));
         $this->paymongoSecretKey = Setting::get('paymongo_secret_key', config('services.paymongo.secret_key', ''));
         $this->paymongoWebhookSecret = Setting::get('paymongo_webhook_secret', config('services.paymongo.webhook_secret', ''));
-        $this->semaphoreApiKey = (string) Setting::get('semaphore_api_key', config('services.semaphore.api_key', ''));
+        $this->philSmsApiKey = (string) Setting::get('philsms_api_key', config('services.philsms.api_key', ''));
     }
 
     /** After QR upload/crop validation errors, reopen the QR modal. */
@@ -184,7 +184,7 @@ class SettingsManager extends Component
             return;
         }
 
-        $allowed = ['devices', 'timing', 'peak', 'alerts', 'paymongo', 'semaphore', 'facebook', 'qr'];
+        $allowed = ['devices', 'timing', 'peak', 'alerts', 'paymongo', 'philsms', 'facebook', 'qr'];
         if (! in_array($modal, $allowed, true)) {
             return;
         }
@@ -254,9 +254,9 @@ class SettingsManager extends Component
     }
 
     #[Computed]
-    public function semaphoreApiKeyConfigured(): bool
+    public function philSmsApiKeyConfigured(): bool
     {
-        return $this->semaphoreApiKey !== '';
+        return $this->philSmsApiKey !== '';
     }
 
     private function normalizeBlockedIpsText(string $text): string
@@ -286,9 +286,9 @@ class SettingsManager extends Component
         $this->restoreSettingsModalFocus();
     }
 
-    public function saveSemaphoreFromModal(): void
+    public function savePhilSmsFromModal(): void
     {
-        $this->saveSemaphore();
+        $this->savePhilSms();
         $this->settingsModal = null;
         $this->restoreSettingsModalFocus();
     }
@@ -438,49 +438,47 @@ class SettingsManager extends Component
         $this->paymongoStatus = 'success';
     }
 
-    public function saveSemaphore(): void
+    public function savePhilSms(): void
     {
         Validator::make(
             [
-                'semaphoreApiKey' => $this->semaphoreApiKey,
-                'semaphoreSenderName' => $this->semaphoreSenderName,
+                'philSmsApiKey' => $this->philSmsApiKey,
+                'philSmsSenderId' => $this->philSmsSenderId,
             ],
             [
-                'semaphoreApiKey' => 'nullable|string|max:255',
-                'semaphoreSenderName' => 'nullable|string|max:32',
+                'philSmsApiKey' => 'nullable|string|max:255',
+                'philSmsSenderId' => 'nullable|string|max:11',
             ]
         )->validate();
 
-        Setting::set('semaphore_api_key', $this->semaphoreApiKey);
-        Setting::set('semaphore_sender_name', $this->semaphoreSenderName !== '' ? $this->semaphoreSenderName : 'CafeGervacios');
+        Setting::set('philsms_api_key', $this->philSmsApiKey);
+        Setting::set('philsms_sender_id', $this->philSmsSenderId !== '' ? $this->philSmsSenderId : 'CafeGervacios');
         Setting::set('sms_enabled', $this->smsEnabled ? '1' : '0');
 
-        AdminLog::record('update_settings', null, null, 'Updated Semaphore SMS settings');
-        $this->semaphoreMessage = 'Semaphore settings saved.';
-        $this->semaphoreStatus = 'success';
+        AdminLog::record('update_settings', null, null, 'Updated PhilSMS settings');
+        $this->philSmsMessage = 'PhilSMS settings saved.';
+        $this->philSmsStatus = 'success';
     }
 
-    public function checkSemaphoreBalance(): void
+    public function checkPhilSmsConnection(): void
     {
-        $this->semaphoreBalanceSummary = '';
-        $data = app(NotificationService::class)->fetchAccountCredits();
+        $this->philSmsConnectionSummary = '';
+        $data = app(NotificationService::class)->checkSmsProviderConnection();
 
         if ($data === null) {
-            $this->semaphoreBalanceSummary = 'Could not load balance. Save a valid API key first.';
+            $this->philSmsConnectionSummary = 'Could not verify PhilSMS. Save a valid API key first.';
 
             return;
         }
 
-        $credits = $data['credit_balance'] ?? '—';
-        $name = $data['account_name'] ?? ($data['account'] ?? '');
         $status = $data['status'] ?? '';
-        $this->semaphoreBalanceSummary = trim("Account: {$name}" . ($status !== '' ? " ({$status})" : '') . ". Remaining SMS credits: {$credits}");
+        $this->philSmsConnectionSummary = 'PhilSMS API reachable. Status: '.($status !== '' ? $status : 'success').'.';
     }
 
     public function sendTestSms(): void
     {
-        $this->semaphoreTestMessage = '';
-        $this->semaphoreTestStatus = '';
+        $this->philSmsTestMessage = '';
+        $this->philSmsTestStatus = '';
 
         $this->validate([
             'adminAlertPhone' => ['required', 'string', 'max:20'],
@@ -488,17 +486,17 @@ class SettingsManager extends Component
 
         try {
             Bus::dispatchSync(new SendSmsJob($this->adminAlertPhone, 'admin_sms_test', [
-                'venue' => config('app.name', 'Café Gervacios'),
+                'venue' => config('app.name', 'Cafe Gervacios'),
             ]));
         } catch (\Throwable $e) {
-            $this->semaphoreTestMessage = $e->getMessage();
-            $this->semaphoreTestStatus = 'error';
+            $this->philSmsTestMessage = $e->getMessage();
+            $this->philSmsTestStatus = 'error';
 
             return;
         }
 
-        $this->semaphoreTestMessage = 'Test SMS sent via Semaphore. Check the phone number in “Admin alert phone”.';
-        $this->semaphoreTestStatus = 'success';
+        $this->philSmsTestMessage = 'Test SMS sent via PhilSMS. Check the phone number in "Admin alert phone".';
+        $this->philSmsTestStatus = 'success';
     }
 
     public function render()

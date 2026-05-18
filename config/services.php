@@ -49,9 +49,10 @@ return [
         ],
     ],
 
-    'semaphore' => [
-        'api_key'     => env('SEMAPHORE_API_KEY'),
-        'sender_name' => env('SEMAPHORE_SENDER_NAME', 'CafeGervacios'),
+    'philsms' => [
+        'api_key' => env('PHILSMS_API_KEY'),
+        'sender_id' => env('PHILSMS_SENDER_ID', 'CafeGervacios'),
+        'endpoint' => env('PHILSMS_ENDPOINT', 'https://app.philsms.com/api/v3/sms/send'),
     ],
 
 ];

@@ -13,6 +13,7 @@ class SmsLog extends Model
         'phone',
         'message',
         'status',
+        'provider_message_id',
         'semaphore_message_id',
         'error_message',
         'template',
@@ -24,4 +25,16 @@ class SmsLog extends Model
         'context' => 'array',
         'created_at' => 'datetime',
     ];
+
+    public function getProviderMessageIdAttribute(): ?string
+    {
+        $value = $this->attributes['semaphore_message_id'] ?? null;
+
+        return $value === null ? null : (string) $value;
+    }
+
+    public function setProviderMessageIdAttribute(mixed $value): void
+    {
+        $this->attributes['semaphore_message_id'] = $value === null ? null : (string) $value;
+    }
 }

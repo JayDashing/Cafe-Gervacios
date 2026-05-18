@@ -224,12 +224,12 @@ class AutomationPaperAlignmentTest extends TestCase
         ]);
 
         AutomationLog::record('late_checkin', 'SMS sent', ['booking_id' => $booking->id]);
-        SmsLog::create([
+        $smsLog = SmsLog::create([
             'phone_hash' => hash('sha256', 'proof'),
             'phone' => '09171112222',
             'message' => 'Late check-in reminder',
             'status' => 'queued',
-            'semaphore_message_id' => 'sms-proof-1',
+            'provider_message_id' => 'sms-proof-1',
             'error_message' => null,
             'template' => 'late_checkin',
             'context' => ['ref' => 'GRV-AUTPROOF'],
@@ -243,7 +243,7 @@ class AutomationPaperAlignmentTest extends TestCase
             ->assertSee('Late Check-in SMS')
             ->assertSee('GRV-AUTPROOF')
             ->assertSee('SMS queued')
-            ->assertSee('sms_logs #1');
+            ->assertSee('sms_logs #'.$smsLog->id);
     }
 
     private function table(array $attrs = []): Table

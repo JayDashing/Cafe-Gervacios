@@ -395,7 +395,7 @@
                                 class="settings-jump-link">Automation</a></li>
                         <li><a href="{{ $settingsModalUrl('paymongo') }}" data-modal="paymongo"
                                 class="settings-jump-link">Online payments</a></li>
-                        <li><a href="{{ $settingsModalUrl('semaphore') }}" data-modal="semaphore"
+                        <li><a href="{{ $settingsModalUrl('philsms') }}" data-modal="philsms"
                                 class="settings-jump-link">Text messages</a></li>
                         <li><a href="{{ $settingsModalUrl('facebook') }}" data-modal="facebook"
                                 class="settings-jump-link">Facebook</a></li>

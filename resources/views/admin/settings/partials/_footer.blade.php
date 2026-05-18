@@ -30,12 +30,12 @@
         </button>
     @endif
 
-    @if ($settingsModal === 'semaphore')
-        <button type="button" wire:click="saveSemaphoreFromModal" wire:loading.attr="disabled"
-            wire:target="saveSemaphoreFromModal"
+    @if ($settingsModal === 'philsms')
+        <button type="button" wire:click="savePhilSmsFromModal" wire:loading.attr="disabled"
+            wire:target="savePhilSmsFromModal"
             class="inline-flex min-h-11 min-w-[5.5rem] items-center justify-center rounded-lg border border-panel-primary bg-panel-primary px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition hover:bg-panel-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-panel-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
-            <span wire:loading.remove wire:target="saveSemaphoreFromModal">Save</span>
-            <span wire:loading wire:target="saveSemaphoreFromModal" class="inline-flex items-center gap-2">
+            <span wire:loading.remove wire:target="savePhilSmsFromModal">Save</span>
+            <span wire:loading wire:target="savePhilSmsFromModal" class="inline-flex items-center gap-2">
                 <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
                     aria-hidden="true"></span>
                 Saving…

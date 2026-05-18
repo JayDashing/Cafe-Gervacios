@@ -56,7 +56,7 @@ class AdminController extends Controller
                 ],
                 [
                     'title' => 'Recent SMS Logs',
-                    'description' => 'Semaphore/text-message attempts created by queue, booking, and automation actions.',
+                    'description' => 'PhilSMS/text-message attempts created by queue, booking, and automation actions.',
                     'rows' => $this->recentSmsLogRows(),
                 ],
                 [
@@ -386,7 +386,7 @@ class AdminController extends Controller
                 'related' => $this->contextSummary($log->context, $log->phone ?: 'No phone stored'),
                 'status' => $this->compactParts([
                     'Status: '.($log->status ?: 'unknown'),
-                    $log->semaphore_message_id ? 'Semaphore ID '.$log->semaphore_message_id : null,
+                    $log->provider_message_id ? 'PhilSMS ID '.$log->provider_message_id : null,
                     $log->error_message ? 'Error: '.$log->error_message : null,
                 ]),
                 'source' => 'sms_logs #'.$log->id,
@@ -556,7 +556,7 @@ class AdminController extends Controller
             'text' => $this->compactParts([
                 'SMS '.($matched->status ?: 'unknown'),
                 'Template: '.Str::headline((string) $matched->template),
-                $matched->semaphore_message_id ? 'Semaphore ID '.$matched->semaphore_message_id : null,
+                $matched->provider_message_id ? 'PhilSMS ID '.$matched->provider_message_id : null,
                 $matched->error_message ? 'Error: '.$matched->error_message : null,
                 'sms_logs #'.$matched->id,
             ]),

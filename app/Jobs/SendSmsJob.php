@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * SendSmsJob
  *
- * Queued job for SMS delivery via Semaphore (Philippines).
+ * Queued job for SMS delivery via PhilSMS (Philippines).
  * Never call NotificationService::sendSms() directly from a request cycle.
  * Always dispatch this job to keep SMS latency off the request cycle.
  *
