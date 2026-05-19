@@ -208,11 +208,11 @@
         </div>
 
         <div id="settings-qr"
-            class="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm scroll-mt-24 xl:col-span-4 xl:row-start-1">
+            class="flex min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm scroll-mt-24 xl:col-span-4 xl:row-start-1 xl:self-start">
             <div class="shrink-0 border-b border-slate-200 px-3 py-2">
                 <h2 class="text-sm font-semibold text-slate-800">QR code</h2>
             </div>
-            <div class="flex min-h-0 flex-1 flex-col space-y-3 px-3 py-3 sm:py-4">
+            <div class="flex min-h-0 flex-col space-y-3 px-3 py-3 sm:py-4">
                 @if (
                     $errors->has('qr_image') ||
                         $errors->has('qr_account_name') ||
@@ -232,7 +232,7 @@
                         </ul>
                     </div>
                 @endif
-                <div class="flex min-h-0 flex-1 flex-col gap-4 sm:flex-row sm:items-stretch">
+                <div class="flex min-h-0 flex-col gap-4 sm:flex-row sm:items-center">
                     <div class="flex shrink-0 justify-center sm:w-[7.5rem] sm:justify-start">
                         @if (Setting::get('qr_image_path'))
                             <img src="{{ asset(Setting::get('qr_image_path')) }}?v={{ Setting::get('qr_updated_at') }}"
@@ -243,7 +243,7 @@
                             </div>
                         @endif
                     </div>
-                    <div class="flex min-w-0 flex-1 flex-col justify-center gap-2">
+                    <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <p class="text-xs leading-relaxed text-slate-500">Guests see this when paying by bank transfer.</p>
                         <button type="button" wire:click="openSettingsModal('qr')"
                             onclick="window.__settingsModalPreviousFocus = document.activeElement;"
