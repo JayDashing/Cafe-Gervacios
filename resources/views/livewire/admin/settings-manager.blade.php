@@ -134,7 +134,7 @@
                             @endif
                         </div>
 
-                        <div class="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                        <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                             @foreach ([
                                 'queue_holds' => 'Expire Hold',
                                 'wait_estimates' => 'Wait Estimate',
