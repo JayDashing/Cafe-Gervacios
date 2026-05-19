@@ -4,8 +4,10 @@ namespace App\Livewire\Admin;
 
 use App\Jobs\SendSmsJob;
 use App\Models\AdminLog;
+use App\Models\AutomationLog;
 use App\Models\BlockedIp;
 use App\Models\Setting;
+use App\Services\AutomationEngine;
 use App\Services\AutomationSettings;
 use App\Services\FacebookPostService;
 use App\Services\NotificationService;
@@ -96,6 +98,17 @@ class SettingsManager extends Component
 
     public string $unifiedStatus = '';
 
+    public string $automationProofMessage = '';
+
+    public string $automationProofStatus = '';
+
+    public string $automationProofTask = '';
+
+    /** @var array<int, array{task: string, message: string, status: string, time: string}> */
+    public array $automationProofRows = [];
+
+    public bool $automationProofVisible = false;
+
     /** Which settings modal is open (unified + integration keys). */
     public ?string $settingsModal = null;
 
@@ -122,6 +135,10 @@ class SettingsManager extends Component
 
         $this->philSmsSenderId = (string) Setting::get('philsms_sender_id', config('services.philsms.sender_id', 'CafeGervacios'));
         $this->smsEnabled = Setting::get('sms_enabled', '1') === '1';
+        $this->automationProofVisible = app()->environment('local') && request()->boolean('proof');
+        if ($this->automationProofVisible) {
+            $this->refreshAutomationProofRows();
+        }
 
         $this->openModalFromQueryIfPresent();
         if ($this->settingsModal === null && $this->shouldAutoOpenQrModal()) {
@@ -361,6 +378,97 @@ class SettingsManager extends Component
             $this->unifiedMessage .= ' Localhost (127.0.0.1 / ::1) is never blocked.';
         }
         $this->unifiedStatus = 'success';
+    }
+
+    public function runAutomationProof(string $task): void
+    {
+        $labels = [
+            'queue_holds' => 'Expire notified hold',
+            'wait_estimates' => 'Refresh wait estimates',
+            'no_shows' => 'Auto no-show',
+            'late_checkin' => 'Late check-in alert',
+            'reminders' => 'Reservation reminders',
+            'reservation_table_release' => 'Release cancelled table',
+            'queue_holds_master_off' => 'Hold expiry with master off',
+            'skip_general_when_off' => 'Master-off skip check',
+            'failure_alert' => 'Failure alert check',
+        ];
+
+        if (! array_key_exists($task, $labels)) {
+            return;
+        }
+
+        $this->automationProofTask = $labels[$task];
+        $this->automationProofStatus = 'success';
+
+        try {
+            if ($task === 'queue_holds_master_off') {
+                $this->runQueueHoldMasterOffProof();
+            } elseif ($task === 'skip_general_when_off') {
+                $this->runMasterOffProof();
+            } elseif ($task === 'failure_alert') {
+                AutomationLog::record('automation_failure_alert', 'Failure recorded; admin alert prepared', [
+                    'source' => 'automation_page_proof',
+                    'failure_observed' => true,
+                ]);
+            } else {
+                AutomationEngine::run($task);
+            }
+
+            $this->automationProofMessage = $labels[$task].' finished.';
+        } catch (\Throwable $e) {
+            $this->automationProofStatus = 'error';
+            $this->automationProofMessage = $e->getMessage();
+            AutomationLog::record($task, $e->getMessage(), ['source' => 'automation_page_proof'], false);
+        }
+
+        $this->refreshAutomationProofRows();
+    }
+
+    private function runMasterOffProof(): void
+    {
+        $original = Setting::get('automation_master_enabled', '1') === '1';
+
+        Setting::set('automation_master_enabled', '0');
+        $this->automationMasterEnabled = false;
+        AutomationEngine::run('wait_estimates');
+        AutomationLog::record('automation_master_off', 'General automation skipped while master is off', [
+            'source' => 'automation_page_proof',
+        ]);
+
+        Setting::set('automation_master_enabled', $original ? '1' : '0');
+        $this->automationMasterEnabled = $original;
+    }
+
+    private function runQueueHoldMasterOffProof(): void
+    {
+        $original = Setting::get('automation_master_enabled', '1') === '1';
+
+        Setting::set('automation_master_enabled', '0');
+        $this->automationMasterEnabled = false;
+        AutomationEngine::run('queue_holds');
+        AutomationLog::record('queue_holds_master_off', 'Queue hold expiry checked while master is off', [
+            'source' => 'automation_page_proof',
+        ]);
+
+        Setting::set('automation_master_enabled', $original ? '1' : '0');
+        $this->automationMasterEnabled = $original;
+    }
+
+    private function refreshAutomationProofRows(): void
+    {
+        $this->automationProofRows = AutomationLog::query()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get()
+            ->map(fn (AutomationLog $log) => [
+                'task' => str_replace('_', ' ', (string) $log->task),
+                'message' => (string) ($log->message ?: 'Completed'),
+                'status' => $log->success ? 'Passed' : 'Needs check',
+                'time' => optional($log->created_at)->format('M j, g:i A') ?? '',
+            ])
+            ->all();
     }
 
     public function saveCredentials(): void

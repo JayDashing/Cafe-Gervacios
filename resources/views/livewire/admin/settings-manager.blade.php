@@ -118,6 +118,70 @@
                     </button>
                 </div>
 
+                @if ($automationProofVisible)
+                    <div id="automation-proof"
+                        class="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800">Automation test run</h3>
+                                <p class="mt-0.5 text-[11px] text-slate-500">Run proof here for screenshots.</p>
+                            </div>
+                            @if ($automationProofTask)
+                                <span
+                                    class="rounded-full {{ $automationProofStatus === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700' }} px-2.5 py-1 text-[11px] font-semibold">
+                                    {{ $automationProofTask }}
+                                </span>
+                            @endif
+                        </div>
+
+                        <div class="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                            @foreach ([
+                                'queue_holds' => 'Expire Hold',
+                                'wait_estimates' => 'Wait Estimate',
+                                'no_shows' => 'No-show',
+                                'late_checkin' => 'Late Check-in',
+                                'reminders' => 'Reminders',
+                                'reservation_table_release' => 'Release Table',
+                                'queue_holds_master_off' => 'Hold Master Off',
+                                'skip_general_when_off' => 'Master Off',
+                                'failure_alert' => 'Failure Alert',
+                            ] as $taskKey => $taskLabel)
+                                <button type="button" wire:click="runAutomationProof('{{ $taskKey }}')"
+                                    class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-100">
+                                    {{ $taskLabel }}
+                                </button>
+                            @endforeach
+                        </div>
+
+                        @if ($automationProofMessage)
+                            <div data-testid="automation-proof-result"
+                                class="mt-3 rounded-lg {{ $automationProofStatus === 'error' ? 'bg-red-50 text-red-800' : 'bg-white text-slate-700' }} px-3 py-2 text-xs font-medium">
+                                {{ $automationProofMessage }}
+                            </div>
+                        @endif
+
+                        <div data-testid="automation-proof-list"
+                            class="mt-3 divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                            @forelse ($automationProofRows as $row)
+                                <div class="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 text-xs">
+                                    <div class="min-w-0">
+                                        <p class="truncate font-semibold capitalize text-slate-800">{{ $row['task'] }}</p>
+                                        <p class="truncate text-slate-500">{{ $row['message'] }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="{{ $row['status'] === 'Passed' ? 'text-emerald-700' : 'text-amber-700' }} font-semibold">
+                                            {{ $row['status'] }}
+                                        </p>
+                                        <p class="text-slate-400">{{ $row['time'] }}</p>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="px-3 py-3 text-xs text-slate-500">No automation run yet.</div>
+                            @endforelse
+                        </div>
+                    </div>
+                @endif
+
                 <div class="mt-3 space-y-3 border-t border-slate-100 pt-3">
                     @if ($this->blockedIpsDirty)
                         <div class="w-full max-w-md space-y-1.5 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5">
