@@ -33,15 +33,15 @@ class QueueService
             $hints[] = 'Auto table-ready alerts are turned off. Use manual notify for each guest when a table suits them.';
         }
 
-        if (!AutomationSettings::effectivePeakForQueueNotify()) {
-            $hints[] = 'Outside the busy-hours window - auto table-ready alerts are paused. Use manual notify, or tap Override.';
-        }
-
         if (Setting::get('sms_enabled', '1') !== '1') {
             $hints[] = 'Guest notifications are disabled in settings.';
         }
 
-        $waiting = QueueEntry::waiting()->sorted()->get();
+        $waiting = QueueEntry::waiting()
+            ->orderByDesc('priority_score')
+            ->orderByRaw('COALESCE(estimated_wait, 999999)')
+            ->orderBy('joined_at')
+            ->get();
         $tables = Table::query()
             ->where('status', 'available')
             ->orderBy('capacity')
@@ -346,10 +346,6 @@ class QueueService
             return;
         }
 
-        if (!AutomationSettings::effectivePeakForQueueNotify()) {
-            return;
-        }
-
         $tables = Table::query()
             ->where('status', 'available')
             ->orderBy('capacity')
@@ -434,7 +430,16 @@ class QueueService
             return;
         }
 
+        $email = trim((string) $next->customer_email);
+        $isEmail = filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+
         $this->sendTableReadyNotification($next, $assignedTable, $holdMinutes, $venueName);
+        AutomationLog::record('queue_notify', 'Guest auto-notified for available table', [
+            'entry_id' => $next->id,
+            'table_id' => $assignedTable->id,
+            'notification_channel' => $isEmail ? 'email' : 'sms',
+            'notification_status' => $isEmail ? 'sent' : 'queued',
+        ]);
 
         Cache::forget('tables.venue.1');
         $this->refreshEstimatedWaits();
@@ -770,9 +775,6 @@ class QueueService
             $tone = 'warn';
             $headline = 'Auto table-ready alerts are turned off.';
             $resumeAutoSmsAvailable = true;
-        } elseif (! AutomationSettings::effectivePeakForQueueNotify()) {
-            $tone = 'warn';
-            $headline = 'Outside busy hours - auto alerts paused (use Override or manual notify).';
         } elseif (count($hints) > 0) {
             $tone = 'warn';
             $headline = $hints[0];

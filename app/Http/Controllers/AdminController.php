@@ -479,6 +479,7 @@ class AdminController extends Controller
     {
         return match ($task) {
             'queue_holds' => 'Queue Hold Expiry',
+            'queue_notify' => 'Queue Auto Notify',
             'wait_estimates' => 'Wait Estimate Alerts',
             'no_shows' => 'No-show Automation',
             'late_checkin' => 'Late Check-in SMS',
@@ -593,6 +594,7 @@ class AdminController extends Controller
 
         return match ((string) $log->task) {
             'queue_holds' => ['queue_skipped'],
+            'queue_notify' => ['table_ready'],
             'wait_estimates' => ['wait_extended'],
             'no_shows' => ['no_show'],
             'late_checkin' => ['late_checkin'],

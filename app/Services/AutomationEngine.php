@@ -145,11 +145,14 @@ class AutomationEngine
 
     public static function refreshWaitEstimates(): void
     {
+        $queue = app(QueueService::class);
+
         if (! AutomationSettings::bool('automation_wait_sms_enabled', true)) {
+            $queue->notifyNextMatchingTables();
+
             return;
         }
 
-        $queue = app(QueueService::class);
         $jump = AutomationSettings::int('automation_wait_increase_minutes', (int) config('automation.wait_increase_alert_minutes', 10));
 
         $waiting = QueueEntry::waiting()->get();
@@ -173,6 +176,8 @@ class AutomationEngine
                 AutomationLog::record('wait_estimates', 'Wait extended SMS', ['entry_id' => $entry->id]);
             }
         }
+
+        $queue->notifyNextMatchingTables();
     }
 
     public static function markNoShows(): void

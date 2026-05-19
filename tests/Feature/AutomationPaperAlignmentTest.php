@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\SendSmsJob;
 use App\Mail\QueueHoldExpiredMail;
+use App\Mail\TableReadyMail;
 use App\Models\AutomationLog;
 use App\Models\Booking;
 use App\Models\QueueEntry;
@@ -83,6 +84,45 @@ class AutomationPaperAlignmentTest extends TestCase
         $this->assertNotNull($entry->wait_alert_sent_at);
         $this->assertDatabaseHas('automation_logs', ['task' => 'wait_estimates', 'message' => 'Wait extended SMS']);
         Queue::assertPushed(SendSmsJob::class, 1);
+    }
+
+    public function test_wait_estimate_automation_notifies_lowest_eta_guest_that_fits_available_table(): void
+    {
+        Mail::fake();
+        Queue::fake([SendSmsJob::class]);
+        Setting::set('automation_master_enabled', '1');
+        Setting::set('automation_notify_queue_on_release', '1');
+        Setting::set('waitlist_staff_peak_override', '1');
+
+        $table = $this->table(['capacity' => 2, 'status' => 'available']);
+        $cara = $this->queueEntry([
+            'customer_name' => 'Cara Lim',
+            'customer_email' => 'moc076027@gmail.com',
+            'party_size' => 4,
+            'estimated_wait' => 10,
+            'last_estimated_wait' => 10,
+            'joined_at' => now()->subMinutes(3),
+        ]);
+        $dino = $this->queueEntry([
+            'customer_name' => 'Dino Cruz',
+            'customer_email' => 'moc076027@gmail.com',
+            'party_size' => 2,
+            'estimated_wait' => 20,
+            'last_estimated_wait' => 20,
+            'joined_at' => now()->subMinutes(2),
+        ]);
+
+        AutomationEngine::run('wait_estimates');
+
+        $this->assertSame('waiting', $cara->refresh()->status);
+        $this->assertSame('notified', $dino->refresh()->status);
+        $this->assertSame($table->id, $dino->reserved_table_id);
+        $this->assertSame('reserved', $table->refresh()->status);
+        Mail::assertSent(TableReadyMail::class, 1);
+        $this->assertDatabaseHas('automation_logs', [
+            'task' => 'queue_notify',
+            'message' => 'Guest auto-notified for available table',
+        ]);
     }
 
     public function test_no_show_marks_booking_releases_table_sends_sms_and_logs(): void

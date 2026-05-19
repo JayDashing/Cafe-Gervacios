@@ -324,6 +324,9 @@ class WaitlistPanel extends Component
         $this->ensureAdmin();
         $v = Setting::get('automation_notify_queue_on_release', '1');
         Setting::set('automation_notify_queue_on_release', $v === '1' ? '0' : '1');
+        if ($v !== '1') {
+            app(QueueService::class)->notifyNextAfterTableRelease();
+        }
         $this->dispatch('notify', type: 'success', message: 'Auto table-ready alert setting updated.');
     }
 
@@ -334,6 +337,7 @@ class WaitlistPanel extends Component
     {
         $this->ensureAdmin();
         Setting::set('automation_notify_queue_on_release', '1');
+        app(QueueService::class)->notifyNextAfterTableRelease();
         $this->dispatch('notify', type: 'success', message: 'Auto table-ready alerts resumed.');
     }
 
