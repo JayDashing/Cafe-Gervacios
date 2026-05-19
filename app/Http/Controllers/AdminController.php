@@ -529,6 +529,18 @@ class AdminController extends Controller
 
     private function automationSmsLog(AutomationLog $log, ?Booking $booking, ?QueueEntry $entry): array
     {
+        $channel = (string) data_get($log->payload, 'notification_channel', '');
+        if ($channel === 'email') {
+            $status = (string) data_get($log->payload, 'notification_status', 'sent');
+
+            return [
+                'status' => $status === 'sent' ? 'sent' : 'warning',
+                'text' => $status === 'sent'
+                    ? 'Email sent'
+                    : 'Email skipped: '.Str::headline((string) data_get($log->payload, 'notification_reason', 'unknown')),
+            ];
+        }
+
         $templates = $this->automationSmsTemplates($log);
 
         if ($templates === []) {

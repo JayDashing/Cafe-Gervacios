@@ -323,7 +323,7 @@
 
         <header class="sl-hero">
             <h1 class="sl-title">System Logs ({{ $totalRows }})</h1>
-            <p class="sl-subtitle">Operational records for waitlist changes, SMS attempts, automation, priority handling, table status, and analytics sources.</p>
+            <p class="sl-subtitle">Operational records for waitlist changes, notifications, automation, priority handling, table status, and analytics sources.</p>
         </header>
 
         <div class="sl-toolbar" data-system-log-controls>
@@ -380,7 +380,7 @@
                                         <th>Status</th>
                                         <th>Affected record</th>
                                         <th>Message</th>
-                                        <th>SMS result</th>
+                                        <th>Notification result</th>
                                         <th>Source</th>
                                     </tr>
                                 @else

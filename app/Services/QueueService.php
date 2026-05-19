@@ -6,6 +6,7 @@ use App\Models\QueueEntry;
 use App\Models\Setting;
 use App\Models\Table;
 use App\Jobs\SendSmsJob;
+use App\Mail\QueueHoldExpiredMail;
 use App\Mail\TableReadyMail;
 use App\Models\AutomationLog;
 use Illuminate\Support\Collection;
@@ -29,15 +30,15 @@ class QueueService
         $hints = [];
 
         if (!AutomationSettings::bool('automation_notify_queue_on_release', true)) {
-            $hints[] = 'Auto table-ready SMS is turned off. Use the blue SMS button for each guest when a table suits them.';
+            $hints[] = 'Auto table-ready alerts are turned off. Use manual notify for each guest when a table suits them.';
         }
 
         if (!AutomationSettings::effectivePeakForQueueNotify()) {
-            $hints[] = 'Outside the busy-hours window — auto table-ready SMS is paused. Use SMS to call the next guest, or tap Override.';
+            $hints[] = 'Outside the busy-hours window - auto table-ready alerts are paused. Use manual notify, or tap Override.';
         }
 
         if (Setting::get('sms_enabled', '1') !== '1') {
-            $hints[] = 'SMS is disabled in settings — texts will not send until SMS is turned on.';
+            $hints[] = 'Guest notifications are disabled in settings.';
         }
 
         $waiting = QueueEntry::waiting()->sorted()->get();
@@ -58,7 +59,7 @@ class QueueService
         }
 
         if (!$this->anyWaitingGuestFitsAnyTable($waiting, $tables)) {
-            $hints[] = 'No Free table fits the next guest(s) by party size (and accessible-table rule if enabled for PWD in settings). Free a suitable table or use SMS when you seat them manually.';
+            $hints[] = 'No Free table fits the next guest(s) by party size (and accessible-table rule if enabled for PWD in settings). Free a suitable table or notify them manually.';
         }
 
         return $hints;
@@ -269,12 +270,12 @@ class QueueService
     }
 
     /**
-     * When a notified guest’s hold expires: free the held table, cancel the entry, SMS, notify next.
+     * When a notified guest's hold expires: free the held table, cancel the entry, email, notify next.
      */
     public function finalizeExpiredNotifiedHold(QueueEntry $entry): void
     {
-        $phone = $entry->customer_phone;
         $name = $entry->customer_name;
+        $email = trim((string) $entry->customer_email);
         $entryId = $entry->id;
 
         $processed = false;
@@ -310,12 +311,22 @@ class QueueService
             return;
         }
 
-        dispatch(new SendSmsJob($phone, 'queue_skipped', [
-            'name' => $name,
-            'venue' => config('app.venue_name', config('app.name')),
-        ]));
+        $payload = ['entry_id' => $entryId];
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+            Mail::to($email, $name)->send(new QueueHoldExpiredMail(
+                customerName: $name,
+                venueName: config('app.venue_name', config('app.name')),
+            ));
+            $payload['notification_channel'] = 'email';
+            $payload['notification_status'] = 'sent';
+            $payload['email_domain'] = str_contains($email, '@') ? substr(strrchr($email, '@'), 1) : null;
+        } else {
+            $payload['notification_channel'] = 'email';
+            $payload['notification_status'] = 'skipped';
+            $payload['notification_reason'] = 'missing_guest_email';
+        }
 
-        AutomationLog::record('queue_holds', 'Skipped hold expired', ['entry_id' => $entryId]);
+        AutomationLog::record('queue_holds', 'Skipped hold expired', $payload);
         $this->notifyNextAfterTableRelease();
         $this->refreshEstimatedWaits();
     }
@@ -749,19 +760,19 @@ class QueueService
     {
         $hints = $hints ?? $this->waitlistStaffHints();
         $tone = 'ok';
-        $headline = 'Auto table-ready SMS can run when a table frees and a guest fits.';
+        $headline = 'Auto table-ready alerts can run when a table frees and a guest fits.';
         $resumeAutoSmsAvailable = false;
 
         if (Setting::get('sms_enabled', '1') !== '1') {
             $tone = 'danger';
-            $headline = 'SMS is disabled in settings — no texts will send.';
+            $headline = 'Guest notifications are disabled in settings.';
         } elseif (! AutomationSettings::bool('automation_notify_queue_on_release', true)) {
             $tone = 'warn';
-            $headline = 'Auto table-ready SMS is turned off.';
+            $headline = 'Auto table-ready alerts are turned off.';
             $resumeAutoSmsAvailable = true;
         } elseif (! AutomationSettings::effectivePeakForQueueNotify()) {
             $tone = 'warn';
-            $headline = 'Outside busy hours — auto SMS paused (use Override or manual SMS).';
+            $headline = 'Outside busy hours - auto alerts paused (use Override or manual notify).';
         } elseif (count($hints) > 0) {
             $tone = 'warn';
             $headline = $hints[0];

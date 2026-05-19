@@ -13,7 +13,7 @@
             --ops-radius: 0.75rem;
         }
 
-        .wl-sms-status {
+        .wl-alert-status {
             display: inline-flex;
             min-height: 2.25rem;
             width: fit-content;
@@ -31,37 +31,37 @@
             box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72);
         }
 
-        .wl-sms-status.is-active {
+        .wl-alert-status.is-active {
             border-color: #c9f1ca;
             background: #effff0;
             color: #1b5e20;
         }
 
-        .wl-sms-status.is-paused {
+        .wl-alert-status.is-paused {
             border-color: #ffeab8;
             background: #ffffe0;
             color: #7a4a00;
         }
 
-        .wl-sms-status-dot {
+        .wl-alert-status-dot {
             height: 0.5rem;
             width: 0.5rem;
             flex-shrink: 0;
             border-radius: 999px;
         }
 
-        .wl-sms-status.is-active .wl-sms-status-dot {
+        .wl-alert-status.is-active .wl-alert-status-dot {
             background: #4caf50;
             box-shadow: 0 0 0 3px #c9f1ca;
         }
 
-        .wl-sms-status.is-paused .wl-sms-status-dot {
+        .wl-alert-status.is-paused .wl-alert-status-dot {
             background: #ffb800;
             box-shadow: 0 0 0 3px #ffeab8;
         }
 
         @media (min-width: 640px) {
-            .wl-sms-status {
+            .wl-alert-status {
                 align-self: auto;
             }
         }
@@ -94,9 +94,9 @@
                 Add Walk-in
             </button>
 
-            <div class="wl-sms-status {{ $autoSmsOn ? 'is-active' : 'is-paused' }}" role="status">
-                <span class="wl-sms-status-dot" aria-hidden="true"></span>
-                Auto-SMS {{ $autoSmsOn ? 'Active' : 'Paused' }}
+            <div class="wl-alert-status {{ $autoSmsOn ? 'is-active' : 'is-paused' }}" role="status">
+                <span class="wl-alert-status-dot" aria-hidden="true"></span>
+                Email Alerts {{ $autoSmsOn ? 'Active' : 'Paused' }}
             </div>
         </div>
 
@@ -118,7 +118,7 @@
                             @if (auth()->user()->isAdmin() && ($systemStatus['resume_auto_sms_available'] ?? false))
                                 <button type="button" wire:click="resumeAutoSms" wire:loading.attr="disabled"
                                     class="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg bg-panel-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-60">
-                                    Resume SMS
+                                    Resume Alerts
                                 </button>
                             @endif
                         </div>
@@ -340,7 +340,7 @@
                         @else
                             <button type="button" wire:click="markBookingNoShow({{ $booking->id }})"
                                 wire:loading.attr="disabled"
-                                wire:confirm="Mark this reservation as no-show? The customer will receive the no-show SMS and any assigned table will be released."
+                                wire:confirm="Mark this reservation as no-show? The customer will receive the no-show email and any assigned table will be released."
                                 class="tc-admin-btn-secondary inline-flex min-h-11 items-center justify-center rounded-xl px-3 py-2 text-sm font-bold disabled:cursor-wait disabled:opacity-60">
                                 No-show
                             </button>
@@ -376,7 +376,7 @@
     @if ($showBusyHoursModal)
         <div class="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4" wire:click.self="closeBusyHoursModal">
             <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" @click.stop>
-                <h3 class="text-base font-bold text-slate-900">Busy hours (auto table-ready SMS)</h3>
+                <h3 class="text-base font-bold text-slate-900">Busy hours (auto table-ready alerts)</h3>
                 <p class="mt-1 text-xs text-slate-600">When learn from waitlist is on, peak hours are estimated from traffic; otherwise fixed window applies.</p>
                 <div class="mt-4 space-y-3">
                     <label class="flex items-center gap-2 text-sm font-medium text-slate-800">

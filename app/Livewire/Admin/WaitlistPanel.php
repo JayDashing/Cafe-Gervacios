@@ -324,17 +324,17 @@ class WaitlistPanel extends Component
         $this->ensureAdmin();
         $v = Setting::get('automation_notify_queue_on_release', '1');
         Setting::set('automation_notify_queue_on_release', $v === '1' ? '0' : '1');
-        $this->dispatch('notify', type: 'success', message: 'Auto table-ready SMS setting updated.');
+        $this->dispatch('notify', type: 'success', message: 'Auto table-ready alert setting updated.');
     }
 
     /**
-     * Turn auto table-ready SMS back on (same setting as the Auto-SMS control / waitlist toggle).
+     * Turn auto table-ready alerts back on.
      */
     public function resumeAutoSms(): void
     {
         $this->ensureAdmin();
         Setting::set('automation_notify_queue_on_release', '1');
-        $this->dispatch('notify', type: 'success', message: 'Auto table-ready SMS resumed.');
+        $this->dispatch('notify', type: 'success', message: 'Auto table-ready alerts resumed.');
     }
 
     public function togglePeakOverride(): void
@@ -342,7 +342,7 @@ class WaitlistPanel extends Component
         $this->ensureStaff();
         $v = Setting::get('waitlist_staff_peak_override', '0');
         Setting::set('waitlist_staff_peak_override', $v === '1' ? '0' : '1');
-        $this->dispatch('notify', type: 'info', message: $v === '1' ? 'Staff override off.' : 'Staff override on — auto SMS can run outside busy hours.');
+        $this->dispatch('notify', type: 'info', message: $v === '1' ? 'Staff override off.' : 'Staff override on - auto alerts can run outside busy hours.');
     }
 
     public function extendHold(int $entryId): void

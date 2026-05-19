@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\SendSmsJob;
+use App\Mail\QueueHoldExpiredMail;
 use App\Models\AutomationLog;
 use App\Models\Booking;
 use App\Models\QueueEntry;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Services\AutomationEngine;
 use App\Services\QueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -22,6 +24,7 @@ class AutomationPaperAlignmentTest extends TestCase
 
     public function test_expired_notified_hold_runs_even_when_master_is_disabled(): void
     {
+        Mail::fake();
         Queue::fake([SendSmsJob::class]);
         Setting::set('automation_master_enabled', '0');
         Setting::set('automation_queue_hold_enabled', '1');
@@ -30,6 +33,7 @@ class AutomationPaperAlignmentTest extends TestCase
         $table = $this->table(['status' => 'reserved']);
         $entry = $this->queueEntry([
             'status' => 'notified',
+            'customer_email' => 'guest@example.com',
             'reserved_table_id' => $table->id,
             'hold_expires_at' => now()->subMinute(),
             'hold_confirmation_code' => 'ABC123',
@@ -42,7 +46,8 @@ class AutomationPaperAlignmentTest extends TestCase
         $this->assertNull($entry->reserved_table_id);
         $this->assertSame('available', $table->refresh()->status);
         $this->assertDatabaseHas('automation_logs', ['task' => 'queue_holds', 'success' => true]);
-        Queue::assertPushed(SendSmsJob::class, 1);
+        Mail::assertSent(QueueHoldExpiredMail::class, 1);
+        Queue::assertNotPushed(SendSmsJob::class);
     }
 
     public function test_wait_estimates_refresh_and_send_extended_wait_alert(): void
@@ -244,6 +249,25 @@ class AutomationPaperAlignmentTest extends TestCase
             ->assertSee('GRV-AUTPROOF')
             ->assertSee('SMS queued')
             ->assertSee('sms_logs #'.$smsLog->id);
+
+        $entry = $this->queueEntry([
+            'customer_name' => 'Email Proof',
+            'customer_email' => 'proof@example.com',
+            'status' => 'cancelled',
+            'skipped_at' => now(),
+        ]);
+        AutomationLog::record('queue_holds', 'Skipped hold expired', [
+            'entry_id' => $entry->id,
+            'notification_channel' => 'email',
+            'notification_status' => 'sent',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.system-logs'))
+            ->assertOk()
+            ->assertSee('Queue Hold Expiry')
+            ->assertSee('Email Proof')
+            ->assertSee('Email sent');
     }
 
     private function table(array $attrs = []): Table

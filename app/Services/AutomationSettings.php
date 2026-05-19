@@ -199,7 +199,7 @@ class AutomationSettings
     }
 
     /**
-     * True when auto table-ready SMS may run for the queue (busy window OR staff override).
+     * True when auto table-ready alerts may run for the queue (busy window OR staff override).
      */
     public static function effectivePeakForQueueNotify(): bool
     {
