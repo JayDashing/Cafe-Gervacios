@@ -28,6 +28,8 @@ return [
 
     'venue_name' => env('APP_VENUE_NAME', 'Cafe Gervacios'),
 
+    'show_dev_login' => (bool) env('SHOW_DEV_LOGIN', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

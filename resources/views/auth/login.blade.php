@@ -90,7 +90,7 @@
                     </button>
                 </form>
 
-                @if (app()->environment('local'))
+                @if (app()->environment('local') && config('app.show_dev_login', false))
                     <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                         <p class="text-xs font-semibold text-emerald-950">Development-only login</p>
                         <p class="mt-1 text-xs text-emerald-800">Use this shortcut when testing locally.</p>
