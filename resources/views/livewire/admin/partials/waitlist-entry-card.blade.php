@@ -144,6 +144,16 @@
                         <span class="font-bold uppercase tracking-wide text-slate-500">Created</span>
                         <span class="font-semibold text-slate-950">{{ $createdAt?->format('M j, g:i A') ?? 'Unknown' }}</span>
                     </div>
+                    <div class="flex min-h-12 items-center justify-between gap-4 border-t border-slate-100 px-4 py-3 sm:border-r">
+                        <span class="font-bold uppercase tracking-wide text-slate-500">Priority Score</span>
+                        <span class="font-semibold text-slate-950">{{ (int) $entry->priority_score }}</span>
+                    </div>
+                    <div class="flex min-h-12 items-center justify-between gap-4 border-t border-slate-100 px-4 py-3">
+                        <span class="font-bold uppercase tracking-wide text-slate-500">Seating Rule</span>
+                        <span class="truncate text-right font-semibold text-slate-950">
+                            {{ $entry->needs_accessible ? 'Accessible table required' : 'Standard table allowed' }}
+                        </span>
+                    </div>
                     @if ($entry->hold_expires_at)
                         <div class="flex min-h-12 items-center justify-between gap-4 border-t border-slate-100 px-4 py-3 sm:col-span-2">
                             <span class="font-bold uppercase tracking-wide text-slate-500">Hold</span>

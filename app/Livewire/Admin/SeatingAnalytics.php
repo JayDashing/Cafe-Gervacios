@@ -12,33 +12,59 @@ use Livewire\Component;
 
 class SeatingAnalytics extends Component
 {
+    private function previewEmptyState(): bool
+    {
+        return app()->environment('local')
+            && request()->boolean('empty');
+    }
+
     #[Computed]
     public function totalBookingsToday(): int
     {
+        if ($this->previewEmptyState()) {
+            return 0;
+        }
+
         return Booking::query()->whereDate('booked_at', today())->count();
     }
 
     #[Computed]
     public function totalCheckedInToday(): int
     {
+        if ($this->previewEmptyState()) {
+            return 0;
+        }
+
         return Booking::query()->whereDate('checked_in_at', today())->count();
     }
 
     #[Computed]
     public function totalSeatedFromQueue(): int
     {
+        if ($this->previewEmptyState()) {
+            return 0;
+        }
+
         return QueueEntry::query()->whereDate('seated_at', today())->count();
     }
 
     #[Computed]
     public function tablesOccupiedNow(): int
     {
+        if ($this->previewEmptyState()) {
+            return 0;
+        }
+
         return Table::query()->where('status', 'occupied')->count();
     }
 
     #[Computed]
     public function tablesFreeNow(): int
     {
+        if ($this->previewEmptyState()) {
+            return 0;
+        }
+
         return Table::query()->where('status', 'available')->count();
     }
 
@@ -61,6 +87,10 @@ class SeatingAnalytics extends Component
     #[Computed]
     public function peakHourData(): array
     {
+        if ($this->previewEmptyState()) {
+            return array_fill(0, 24, 0);
+        }
+
         $since = now()->subDays(7)->startOfDay();
         $counts = array_fill(0, 24, 0);
 
@@ -90,6 +120,10 @@ class SeatingAnalytics extends Component
     #[Computed]
     public function topTableUsage(): array
     {
+        if ($this->previewEmptyState()) {
+            return [];
+        }
+
         $since = now()->subDays(30)->startOfDay();
 
         $rows = Booking::query()
@@ -125,6 +159,10 @@ class SeatingAnalytics extends Component
     #[Computed]
     public function hasSourceData(): bool
     {
+        if ($this->previewEmptyState()) {
+            return false;
+        }
+
         return Booking::query()->exists()
             || QueueEntry::query()->exists()
             || Table::query()->exists();
