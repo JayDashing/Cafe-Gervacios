@@ -135,7 +135,7 @@ class SettingsManager extends Component
 
         $this->philSmsSenderId = (string) Setting::get('philsms_sender_id', config('services.philsms.sender_id', 'CafeGervacios'));
         $this->smsEnabled = Setting::get('sms_enabled', '1') === '1';
-        $this->automationProofVisible = app()->environment('local') && request()->boolean('proof');
+        $this->automationProofVisible = app()->environment('local');
         if ($this->automationProofVisible) {
             $this->refreshAutomationProofRows();
         }

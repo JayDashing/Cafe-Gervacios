@@ -123,8 +123,8 @@
                         class="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                         <div class="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                                <h3 class="text-sm font-bold text-slate-800">Automation test run</h3>
-                                <p class="mt-0.5 text-[11px] text-slate-500">Run proof here for screenshots.</p>
+                                <h3 class="text-sm font-bold text-slate-800">Run automation tasks</h3>
+                                <p class="mt-0.5 text-[11px] text-slate-500">Use these for functional testing and demo.</p>
                             </div>
                             @if ($automationProofTask)
                                 <span
