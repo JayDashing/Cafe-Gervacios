@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "public/index.php",
+      "src": "composer.json",
       "use": "@vercel/php"
     },
     {
@@ -16,11 +16,11 @@
   ],
   "routes": [
     {
-      "src": "/build/(.*)",
+      "src": "^/build/(.*)$",
       "dest": "/public/build/$1"
     },
     {
-      "src": "^/(favicon\.ico|robots\.txt)$",
+      "src": "^/(favicon\\.ico|robots\\.txt)$",
       "dest": "/public/$1"
     },
     {
