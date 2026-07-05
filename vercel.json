@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "buildCommand": "npm run build",
+        "distDir": "public/build"
+      }
+    }
+  ],
+  "outputDirectory": "public/build"
+}
